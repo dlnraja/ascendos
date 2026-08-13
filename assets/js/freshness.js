@@ -146,9 +146,22 @@ const FreshRadar = (() => {
   }
 
   /**
-   * @deprecated use JobSources.aggregate — kept for compatibility
+   * Fresh fetch — always via AscendCore / LocalStack (backend → browser → cache).
+   * @deprecated prefer AscendCore.jobs.aggregate
    */
   async function fetchRemotiveFresh(query = "", { hours = 24 } = {}) {
+    const core = typeof AscendCore !== "undefined" ? AscendCore : typeof LocalStack !== "undefined" ? LocalStack : null;
+    if (core?.jobs?.aggregate || core?.aggregateJobs) {
+      const agg = core.jobs?.aggregate || core.aggregateJobs;
+      const { jobs } = await agg({
+        query,
+        hours,
+        enabledIds: ["remotive"],
+        force: true,
+        connectors: {},
+      });
+      return jobs || [];
+    }
     if (typeof JobSources !== "undefined") {
       const { jobs } = await JobSources.aggregate({
         query,
@@ -158,33 +171,32 @@ const FreshRadar = (() => {
       });
       return jobs;
     }
-    const url = query
-      ? `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(query)}&limit=50`
-      : `https://remotive.com/api/remote-jobs?limit=50`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Remotive HTTP ${res.status}`);
-    const data = await res.json();
-    const cutoff = Date.now() - hours * 60 * 60 * 1000;
-    return (data.jobs || [])
-      .map((j) => ({
-        externalId: `remotive_${j.id}`,
-        source: "remotive",
-        title: j.title,
-        company: j.company_name,
-        location: j.candidate_required_location || "Remote",
-        url: j.url,
-        description: j.description ? String(j.description).replace(/<[^>]+>/g, " ").slice(0, 1200) : "",
-        tags: j.tags || [],
-        employerType: "unknown",
-        postedAt: Date.parse(j.publication_date) || Date.now(),
-        createdAt: Date.now(),
-        status: "saved",
-      }))
-      .filter((j) => j.postedAt >= cutoff);
+    return [];
   }
 
-  async function fetchAllFresh(opts) {
-    if (typeof JobSources === "undefined") return fetchRemotiveFresh(opts.query, opts);
+  async function fetchAllFresh(opts = {}) {
+    const core = typeof AscendCore !== "undefined" ? AscendCore : typeof LocalStack !== "undefined" ? LocalStack : null;
+    if (core?.jobs?.aggregate || core?.aggregateJobs) {
+      const agg = core.jobs?.aggregate || core.aggregateJobs;
+      return agg({
+        query: opts.query || "",
+        hours: opts.hours || 24,
+        enabledIds: opts.enabledIds || null,
+        customRss: opts.customRss || [],
+        connectors:
+          opts.connectors ||
+          (opts.apiKeys
+            ? {
+                adzunaAppId: opts.apiKeys.adzunaAppId,
+                adzunaAppKey: opts.apiKeys.adzunaAppKey,
+                aggregateApiBase: "",
+              }
+            : {}),
+        force: opts.force,
+        onProgress: opts.onProgress,
+      });
+    }
+    if (typeof JobSources === "undefined") return { jobs: await fetchRemotiveFresh(opts.query, opts), report: [] };
     return JobSources.aggregate(opts);
   }
 

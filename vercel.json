@@ -1,8 +1,7 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "outputDirectory": ".",
   "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" }
   ],
@@ -10,14 +9,21 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
       ]
     }
   ],
   "functions": {
     "api/aggregate.js": {
       "memory": 256,
-      "maxDuration": 30
+      "maxDuration": 10
     }
   }
 }

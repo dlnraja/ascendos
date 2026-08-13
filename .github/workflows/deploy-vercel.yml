@@ -40,8 +40,12 @@ jobs:
         run: |
           if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Ajoute VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID puis relance (workflow_dispatch)."
-            echo "Créer le projet une fois: npx vercel link"
+            echo "::notice::Vercel non déployé — secrets manquants. Ajoute VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (voir docs/FREE_HOSTING.md), puis Actions → Deploy Vercel → Run workflow."
+            {
+              echo "## Vercel · skipped"
+              echo "Secrets requis : \`VERCEL_TOKEN\`, \`VERCEL_ORG_ID\`, \`VERCEL_PROJECT_ID\`"
+              echo "Une fois : \`npx vercel login\` puis \`npx vercel link\` → copier orgId/projectId depuis \`.vercel/project.json\`"
+            } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -50,7 +54,12 @@ jobs:
         if: steps.check.outputs.skip == 'false'
         run: |
           npm i -g vercel@39
-          vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}"
+          url=$(vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}" | tee /dev/stderr | tail -n 1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "## Vercel · deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dans AscendOS → Connecteurs → URL API agrégateur : \`${url%/}/api\` (ou l’origine du projet)." >> "$GITHUB_STEP_SUMMARY"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        id: vercel_deploy

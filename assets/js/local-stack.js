@@ -373,45 +373,231 @@ const LocalStack = (() => {
     return { mailto, gmail };
   }
 
+  /** Unify path labels: local | upgrade | cooldown (dégradé) */
+  function pathLabel(mode) {
+    const m = String(mode || "local");
+    if (m.includes("skip") || m === "unavailable" || m === "local_prepared") return "local";
+    if (
+      m === "local" ||
+      m === "mailto" ||
+      m === "local_only" ||
+      m === "oauth_available" ||
+      m === "fallback_mailto" ||
+      m === "cancelled_mailto" ||
+      m === "existing"
+    )
+      return "local";
+    if (m === "degraded" || m === "down" || m === "cooldown" || m === "no_resilience") return "cooldown";
+    return "upgrade"; // backend | key | api | oauth_ready | wikidata | …
+  }
+
+  function pathMeta(modeOrPath) {
+    const path = ["local", "upgrade", "cooldown"].includes(modeOrPath)
+      ? modeOrPath
+      : pathLabel(modeOrPath);
+    const tone = path === "upgrade" ? "lime" : path === "cooldown" ? "warn" : "ok";
+    return { path, tone, className: `chip chip-${tone}`, label: path };
+  }
+
+  function pathChipHtml(modeOrPath, escapeHtml = (s) => String(s || ""), title = "") {
+    const { path, className } = pathMeta(modeOrPath);
+    const tip = title ? ` title="${escapeHtml(title)}"` : "";
+    return `<span class="${className}" style="margin-left:0.35rem"${tip}>${escapeHtml(path)}</span>`;
+  }
+
   function statusChipsHtml(state, escapeHtml) {
     const caps = capabilities(state);
     let html = caps
       .map((c) => {
-        const tone =
-          c.mode === "local" || c.mode === "mailto"
-            ? "chip-ok"
-            : c.mode.includes("skip")
-              ? "chip-warn"
-              : "chip-lime";
-        return `<span class="chip ${tone}" title="${escapeHtml(c.detail)}">${escapeHtml(c.label)} · ${escapeHtml(
-          c.mode
+        const { path, className } = pathMeta(c.mode);
+        return `<span class="${className}" title="${escapeHtml(c.detail)}">${escapeHtml(c.label)} · ${escapeHtml(
+          path
         )}</span>`;
       })
       .join(" ");
-    if (typeof AscendResilience !== "undefined") {
-      const down = AscendResilience.statusReport().filter((h) => h.cooling);
-      if (down.length) {
-        html +=
-          " " +
-          down
-            .map(
-              (h) =>
-                `<span class="chip chip-warn" title="${escapeHtml(h.reason)}">down · ${escapeHtml(h.host)}</span>`
-            )
-            .join(" ");
-      }
+    const healthBits = health(state);
+    if (healthBits.cooling.length) {
+      html +=
+        " " +
+        healthBits.cooling
+          .map(
+            (h) =>
+              `<span class="chip chip-warn" title="${escapeHtml(h.reason || "")}">cooldown · ${escapeHtml(
+                h.host
+              )}</span>`
+          )
+          .join(" ");
+    } else if (healthBits.mode === "ok") {
+      html += ` <span class="chip chip-ok" title="Aucun hôte en circuit breaker">santé · ok</span>`;
     }
     return html;
   }
 
-  return {
+  /** Compact header chip: overall stack path. */
+  function stackSummary(state = {}) {
+    const h = health(state);
+    if (h.cooling.length) {
+      return { path: "cooldown", text: `Stack · cooldown (${h.cooling.length})`, tone: "warn" };
+    }
+    const caps = capabilities(state);
+    const upgraded = caps.filter((c) => pathLabel(c.mode) === "upgrade").length;
+    if (upgraded) {
+      return { path: "upgrade", text: `Stack · upgrade (${upgraded})`, tone: "lime" };
+    }
+    return { path: "local", text: "Stack · local (0 clé)", tone: "ok" };
+  }
+
+  /** Host cooldown / resilience + capability snapshot (unified health). */
+  function health(state = {}) {
+    const caps = capabilities(state);
+    const paths = caps.map((c) => ({ id: c.id, path: pathLabel(c.mode), mode: c.mode }));
+    if (typeof AscendResilience === "undefined") {
+      return {
+        cooling: [],
+        hosts: [],
+        paths,
+        mode: "ok",
+        labels: { local: "local", upgrade: "upgrade", cooldown: "cooldown" },
+      };
+    }
+    const hosts = AscendResilience.statusReport();
+    const cooling = hosts.filter((h) => h.cooling);
+    return {
+      hosts,
+      cooling,
+      paths,
+      mode: cooling.length ? "degraded" : "ok",
+      labels: { local: "local", upgrade: "upgrade", cooldown: "cooldown" },
+    };
+  }
+
+  /** Session: prefer existing signed-in, else bind from profile (no OAuth required). */
+  function ensureSession(profile = {}, connectors = {}) {
+    if (typeof AscendSession !== "undefined" && AscendSession.isSignedIn()) {
+      return { session: AscendSession.load(), path: "existing", mode: "upgrade_or_local" };
+    }
+    const sess = bindLocalSession(profile, "local");
+    return {
+      session: sess,
+      path: "local",
+      mode: has(connectors.gmailClientId) ? "oauth_available" : "local_only",
+    };
+  }
+
+  /** Email send via user Gmail or mailto fallback — never silent spam / never recurse via Connectors. */
+  async function sendEmail(draft = {}, opts = {}) {
+    const confirm = opts.confirm !== false && draft.confirm !== false;
+    const payload = {
+      to: draft.to || "",
+      subject: draft.subject || "",
+      body: draft.body || "",
+    };
+    if (typeof GmailSend !== "undefined") {
+      if (confirm) return GmailSend.sendWithConfirm(payload);
+      return GmailSend.send({ ...payload, mode: "send" });
+    }
+    openMailDraft(payload);
+    return { ok: false, path: "mailto", error: "GmailSend absent — mailto" };
+  }
+
+  /** Public enrich (Wikidata) — soft fail. */
+  async function enrichPublic(fullName) {
+    if (typeof PublicEnrich === "undefined") {
+      return { ok: false, hits: [], path: "unavailable" };
+    }
+    try {
+      const fetchFn =
+        typeof AscendResilience !== "undefined" && PublicEnrich.fetchWikidataHints
+          ? async (name) => PublicEnrich.fetchWikidataHints(name)
+          : (name) => PublicEnrich.fetchWikidataHints(name);
+      const out = await fetchFn(fullName);
+      return { ...out, path: out.ok ? "wikidata" : "degraded" };
+    } catch (e) {
+      return { ok: false, hits: [], degraded: true, path: "down", error: e.message };
+    }
+  }
+
+  /** Honest local CV — no external API. */
+  function generateCv({ profile, job, bridge, atsGaps, memory } = {}) {
+    if (typeof CvTailor === "undefined") {
+      return { body: "", html: "", path: "unavailable", honest: true };
+    }
+    const cv = CvTailor.generate({ profile, job, bridge, atsGaps, memory });
+    return { ...cv, path: "local" };
+  }
+
+  /** Honest local cover letter. */
+  function generateLetter({ profile, job, bridge, atsGaps, memory } = {}) {
+    if (typeof CoverLetter === "undefined") {
+      return { body: "", path: "unavailable", honest: true };
+    }
+    const letter = CoverLetter.generate({ profile, job, bridge, atsGaps, memory });
+    return { ...letter, path: "local" };
+  }
+
+  /** Prepare outreach text only — never auto-send (human confirm later). */
+  function prepareOutreach({ profile, job, contact, email } = {}) {
+    if (typeof EmailFinder === "undefined") {
+      return { subject: "", body: "", to: email || "", path: "unavailable" };
+    }
+    const draft = EmailFinder.buildDualOutreach({ profile, job, contact, email });
+    return { ...draft, to: draft.to || email || "", path: "local_prepared" };
+  }
+
+  async function checkMx(domain) {
+    if (typeof EmailFinder === "undefined") {
+      return { ok: false, degraded: true, path: "unavailable" };
+    }
+    try {
+      const out = await EmailFinder.checkDomainMx(domain);
+      return { ...out, path: out.ok ? "local" : "degraded" };
+    } catch (e) {
+      return { ok: false, degraded: true, path: "down", error: e.message };
+    }
+  }
+
+  /**
+   * AscendCore — single facade for all modules (same LocalStack rules).
+   * try upgrade → soft-fail → local compensation.
+   */
+  const AscendCoreApi = {
+    jobs: {
+      aggregate: aggregateJobs,
+    },
+    email: {
+      resolve: resolveEmails,
+      send: sendEmail,
+      sendOrDraft: sendEmail,
+      prepareOutreach,
+      checkMx,
+    },
+    session: {
+      ensure: ensureSession,
+      bindLocal: bindLocalSession,
+    },
+    enrich: {
+      public: enrichPublic,
+    },
+    docs: {
+      cv: generateCv,
+      letter: generateLetter,
+    },
     capabilities,
+    health,
+    pathLabel,
+    pathMeta,
+    pathChipHtml,
+    statusChipsHtml,
+    stackSummary,
+    openMailDraft,
+    // Back-compat aliases (LocalStack names)
     aggregateJobs,
     resolveEmails,
     bindLocalSession,
-    openMailDraft,
-    statusChipsHtml,
   };
+
+  return AscendCoreApi;
 })();
 
+window.AscendCore = LocalStack;
 window.LocalStack = LocalStack;

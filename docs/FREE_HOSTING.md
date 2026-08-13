@@ -1,17 +1,17 @@
 # Free hosting stack — GitHub Actions → Pages / Cloudflare / Vercel / Oracle
 
-AscendOS reste **static-first**. Les backends optionnels ne stockent **aucune** donnée utilisateur (PII interdite).
+AscendOS reste **static-first** + façade **AscendCore** (local → upgrade → cooldown). Les backends optionnels ne stockent **aucune** donnée utilisateur (PII interdite).
 
 ## Matrice gratuite
 
-| Plateforme | Gratuit | Rôle | Workflow Actions |
-|------------|---------|------|------------------|
-| **GitHub Pages** | Oui | Front | `.github/workflows/pages.yml` |
-| **Cloudflare Workers** | Oui (free) | API `/aggregate` | `deploy-cloudflare.yml` |
-| **Cloudflare Pages** | Oui | Front | `deploy-cloudflare-pages.yml` |
-| **Vercel Hobby** | Oui | Front + `/api/aggregate` | `deploy-vercel.yml` |
-| **Oracle Always Free** | Oui* | VM + Node aggregate | `deploy-oracle.yml` |
-| Checklist | — | Voir secrets manquants | `free-deploy-matrix.yml` |
+| Plateforme | Gratuit | Rôle | Workflow Actions | Statut typique |
+|------------|---------|------|------------------|----------------|
+| **GitHub Pages** | Oui | Front | `.github/workflows/pages.yml` | Auto sur push `master` |
+| **Cloudflare Workers** | Oui (free) | API `/aggregate` | `deploy-cloudflare.yml` | Secrets CF requis |
+| **Cloudflare Pages** | Oui | Front | `deploy-cloudflare-pages.yml` | Secrets CF requis |
+| **Vercel Hobby** | Oui | Front + `/api/aggregate` | `deploy-vercel.yml` | Secrets Vercel requis |
+| **Oracle Always Free** | Oui* | VM + Node aggregate | `deploy-oracle.yml` | Secrets SSH requis |
+| Checklist | — | Voir secrets manquants | `free-deploy-matrix.yml` | `workflow_dispatch` |
 
 \* Compte Oracle vérifié, quotas Always Free, ToS Oracle.
 
@@ -23,7 +23,7 @@ Navigateur  →  GitHub Pages ou CF Pages ou Vercel (UI)
             ↘  Worker CF / Vercel /api / Oracle :8787  →  APIs/RSS offres
 ```
 
-Dans AscendOS : **Connecteurs → URL API agrégateur**.
+Dans AscendOS : **Connecteurs → URL API agrégateur** (upgrade AscendCore ; sans URL = radar 100 % navigateur).
 
 ---
 
@@ -38,15 +38,18 @@ Dans AscendOS : **Connecteurs → URL API agrégateur**.
 
 Puis : **Actions → Deploy Cloudflare Worker → Run workflow**.
 
-### Vercel
-1. Une fois en local : `npx vercel login` puis `npx vercel link`
-2. Crée un token : Vercel → Settings → Tokens
-3. Secrets :
+### Vercel (Hobby)
+1. Une fois en local : `npx vercel login` puis `npx vercel link` (à la racine du repo)
+2. Crée un token : [Vercel → Settings → Tokens](https://vercel.com/account/tokens)
+3. Secrets GitHub :
    - `VERCEL_TOKEN`
    - `VERCEL_ORG_ID` (dans `.vercel/project.json` → `orgId`)
    - `VERCEL_PROJECT_ID` (idem → `projectId`)
+4. **Actions → Deploy Vercel → Run workflow** (ou push sur `master`)
 
-Puis : **Actions → Deploy Vercel → Run workflow**.
+Sans ces 3 secrets, le workflow **réussit en skip** (notice dans le résumé) — le front reste sur GitHub Pages.
+
+URL utile après deploy : `https://<projet>.vercel.app` (UI) et agrégateur à coller dans Connecteurs : `https://<projet>.vercel.app` (le client appelle `/aggregate` via la base).
 
 ### Oracle Always Free
 1. VM Ampere A1, Ubuntu, Node 20, clé SSH
@@ -57,7 +60,8 @@ Puis : **Actions → Deploy Vercel → Run workflow**.
 Puis : **Actions → Deploy Oracle Always Free → Run workflow**.
 
 ### GitHub Pages
-**Settings → Pages → Source : GitHub Actions** (pas de secret). Push sur `main` suffit.
+**Settings → Pages → Source : GitHub Actions** (pas de secret). Push sur `main`/`master` suffit.  
+Site : `https://dlnraja.github.io/ascendos/`
 
 ---
 
@@ -70,6 +74,8 @@ npx wrangler login
 npx wrangler deploy
 
 # Vercel
+npx vercel login
+npx vercel link
 npx vercel --prod
 
 # Oracle (sur la VM)
@@ -85,4 +91,5 @@ node server/oracle-aggregate.mjs
 ## Config app
 
 **Connecteurs** → `URL API agrégateur`  
-Ex. `https://ascendos-aggregate.<toi>.workers.dev` ou `https://<projet>.vercel.app`
+Ex. `https://ascendos-aggregate.<toi>.workers.dev` ou `https://<projet>.vercel.app`  
+Sans URL : AscendCore reste en **local** (Remotive / RemoteOK / RSS dans le navigateur).

@@ -6,6 +6,10 @@ Outil carrière open-source, **local-first** : pilotage one-click, score d’upg
 
 **Pas de serveur de comptes AscendOS, pas de base de données utilisateur — l’éditeur ne possède aucune donnée des utilisateurs (RGPD).** Tout vit dans *ton* navigateur. Quotas gratuits plafonnés. **Fonctionne sans connecteurs / clés** ([`docs/LOCAL_STACK.md`](docs/LOCAL_STACK.md)) ; session Google / LinkedIn optionnelle — [`docs/PRIVACY.md`](docs/PRIVACY.md).
 
+### Une logique pour tous les modules
+
+Radar, emails, Gmail, session, enrich, batch, CV / lettres : **même façade** `AscendCore` / `LocalStack` — essayer l’upgrade → soft-fail → compensation locale. Jamais bloquer CV, file, profil ou AutoFill. Détail : [`docs/LOCAL_STACK.md`](docs/LOCAL_STACK.md) · limites légales : [`docs/DISCLAIMER.md`](docs/DISCLAIMER.md).
+
 ## Pourquoi AscendOS
 
 | Couche | Rôle |

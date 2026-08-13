@@ -48,6 +48,7 @@
       </nav>
       <div class="session-bar" id="session-bar">
         <span class="chip chip-info" id="session-chip">Local · aucune session</span>
+        <span class="chip chip-ok" id="stack-chip" title="AscendCore">Stack · local</span>
         <button class="btn btn-ghost btn-tiny" id="btn-session-out" type="button" hidden>Quitter session</button>
       </div>
       <div style="margin-top: auto; display: grid; gap: 0.5rem">
@@ -251,6 +252,9 @@
           <div>
             <div class="panel" style="margin-bottom: 1rem">
               <h2>Import LinkedIn (coller)</h2>
+              <p style="color: var(--mist); font-size: 0.85rem; margin: 0 0 0.65rem">
+                Source de vérité locale — <strong>pas d’API requise</strong>. Colle le texte de ton profil.
+              </p>
               <div class="field">
                 <label>Colle ton profil LinkedIn (texte)</label>
                 <textarea id="import-linkedin" placeholder="Nom\nHeadline\nÀ propos\n..."></textarea>
@@ -913,9 +917,9 @@
     <script src="assets/js/autofill.js"></script>
     <script src="assets/js/enrich.js"></script>
     <script src="assets/js/batch-apply.js"></script>
-    <script src="assets/js/local-stack.js"></script>
     <script src="assets/js/gmail-send.js"></script>
     <script src="assets/js/connectors.js"></script>
+    <script src="assets/js/local-stack.js"></script>
     <script src="assets/js/workflows.js"></script>
     <script src="assets/js/app.js"></script>
   </body>

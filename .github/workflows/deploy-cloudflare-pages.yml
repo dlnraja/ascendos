@@ -42,10 +42,10 @@ jobs:
       - name: Publish Pages
         if: steps.check.outputs.skip == 'false'
         env:
-          PROJECT: ${{ secrets.CF_PAGES_PROJECT }}
+          CF_PAGES_PROJECT: ${{ secrets.CF_PAGES_PROJECT }}
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy . --project-name=ascendos
+          command: pages deploy . --project-name=${{ secrets.CF_PAGES_PROJECT != '' && secrets.CF_PAGES_PROJECT || 'ascendos' }}
           packageManager: npm

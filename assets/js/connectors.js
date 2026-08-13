@@ -249,8 +249,11 @@ Réponds UNIQUEMENT en JSON valide.`;
     window.open(url, "_blank");
   }
 
-  /** Prefer user's Gmail API; fall back to mailto. */
+  /** Prefer AscendCore → user's Gmail API; fall back to mailto. */
   async function sendOrDraft({ to, subject, body, confirm = true } = {}) {
+    if (typeof AscendCore !== "undefined" && AscendCore.email?.send) {
+      return AscendCore.email.send({ to, subject, body }, { confirm });
+    }
     if (typeof GmailSend === "undefined") {
       mailtoDraft({ to, subject, body });
       return { ok: false, path: "mailto" };

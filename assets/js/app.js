@@ -82,6 +82,42 @@
       .join("");
   }
 
+  /** Single facade — AscendCore === LocalStack (local → upgrade → degrade). */
+  function core() {
+    return typeof AscendCore !== "undefined" ? AscendCore : typeof LocalStack !== "undefined" ? LocalStack : null;
+  }
+
+  function pathChip(modeOrPath, title = "") {
+    const c = core();
+    if (c?.pathChipHtml) return c.pathChipHtml(modeOrPath, escapeHtml, title);
+    return `<span class="chip chip-ok">${escapeHtml(modeOrPath || "local")}</span>`;
+  }
+
+  async function sendViaCore(draft) {
+    const c = core();
+    if (c?.email?.send) return c.email.send(draft, { confirm: true });
+    if (typeof Connectors !== "undefined") return Connectors.sendOrDraft({ ...draft, confirm: true });
+    return { ok: false, path: "mailto", error: "Facade absente" };
+  }
+
+  function prepareOutreachViaCore({ job, contact, email } = {}) {
+    const c = core();
+    if (c?.email?.prepareOutreach) {
+      return c.email.prepareOutreach({ profile: state.profile, job, contact, email });
+    }
+    return EmailFinder.buildDualOutreach({ profile: state.profile, job, contact, email });
+  }
+
+  function renderStackChip() {
+    const el = $("#stack-chip");
+    if (!el) return;
+    const c = core();
+    const sum = c?.stackSummary?.(state) || { text: "Stack · local", tone: "ok", path: "local" };
+    el.textContent = sum.text;
+    el.className = `chip chip-${sum.tone || "ok"}`;
+    el.title = "AscendCore · local / upgrade / cooldown";
+  }
+
   function renderSession() {
     const s = AscendSession.load();
     const text = AscendSession.label(s);
@@ -94,13 +130,18 @@
     });
     const out = $("#btn-session-out");
     if (out) out.hidden = !ok;
+    renderStackChip();
   }
 
   async function startGoogleSession() {
     const id = state.connectors.gmailClientId || $("#gmail-client-id")?.value.trim();
     if (!id) {
       // Compensate: local session from profile — no OAuth connector required
-      const sess = LocalStack.bindLocalSession(state.profile, "local");
+      const facade = core();
+      const ensured = facade?.session?.ensure
+        ? facade.session.ensure(state.profile, state.connectors)
+        : { session: facade?.session?.bindLocal?.(state.profile, "local") };
+      const sess = ensured?.session;
       if (sess && (sess.email || sess.name)) {
         state.profile = AscendSession.mergeIntoProfile(state.profile, sess);
         persist();
@@ -227,14 +268,19 @@
   function renderCockpit() {
     const pick = $("#wf-pick");
     if (!pick) return;
-    pick.innerHTML = AscendWorkflows.WORKFLOWS.map(
-      (w) => `<button type="button" class="wf-card${w.id === selectedWorkflowId ? " active" : ""}" data-wf="${w.id}" role="option" aria-selected="${
+    pick.innerHTML = AscendWorkflows.WORKFLOWS.map((w) => {
+      const meta = AscendWorkflows.pathChip?.(w) || { label: "local", tone: "ok" };
+      const chipClass = meta.className || `chip chip-${meta.tone || "ok"}`;
+      return `<button type="button" class="wf-card${w.id === selectedWorkflowId ? " active" : ""}" data-wf="${w.id}" role="option" aria-selected="${
         w.id === selectedWorkflowId
       }">
         <strong>${escapeHtml(w.label)}</strong>
+        <span class="${chipClass}" style="margin:0.35rem 0 0.25rem;display:inline-block;margin-left:0">${escapeHtml(
+          meta.label || meta.path || "local"
+        )}</span>
         <span>${escapeHtml(w.blurb)}</span>
-      </button>`
-    ).join("");
+      </button>`;
+    }).join("");
 
     const wf = AscendWorkflows.byId(selectedWorkflowId);
     const btn = $("#btn-oneclick");
@@ -306,13 +352,21 @@
     const ctx = jobContext(job);
     const memory =
       typeof ApplyMemory !== "undefined" ? ApplyMemory.lessonsRelevant(state, job) : [];
-    const letter = CoverLetter.generate({
-      profile: state.profile,
-      job,
-      bridge,
-      atsGaps: ctx?.ats?.gaps || [],
-      memory,
-    });
+    const letter =
+      core()?.docs?.letter?.({
+        profile: state.profile,
+        job,
+        bridge,
+        atsGaps: ctx?.ats?.gaps || [],
+        memory,
+      }) ||
+      CoverLetter.generate({
+        profile: state.profile,
+        job,
+        bridge,
+        atsGaps: ctx?.ats?.gaps || [],
+        memory,
+      });
     job.coverLetter = letter.body;
     state.letters = state.letters || [];
     state.letters.unshift(letter);
@@ -327,13 +381,21 @@
     const ctx = jobContext(job);
     const memory =
       typeof ApplyMemory !== "undefined" ? ApplyMemory.lessonsRelevant(state, job) : [];
-    const cv = CvTailor.generate({
-      profile: state.profile,
-      job,
-      bridge,
-      atsGaps: ctx?.ats?.gaps || [],
-      memory,
-    });
+    const cv =
+      core()?.docs?.cv?.({
+        profile: state.profile,
+        job,
+        bridge,
+        atsGaps: ctx?.ats?.gaps || [],
+        memory,
+      }) ||
+      CvTailor.generate({
+        profile: state.profile,
+        job,
+        bridge,
+        atsGaps: ctx?.ats?.gaps || [],
+        memory,
+      });
     job.tailoredCv = cv.body;
     job.tailoredCvHtml = cv.html;
     state.cvVersions = state.cvVersions || [];
@@ -544,6 +606,8 @@
     let ctx = { topJob: null, queued: 0, pack: null };
 
     try {
+      const sum = core()?.stackSummary?.(state);
+      if (sum) wfLog(`AscendCore · ${sum.path} — ${sum.text}`);
       for (let i = 0; i < steps.length; i++) {
         wfSetSteps(steps, i);
         const step = steps[i];
@@ -1133,12 +1197,20 @@
       toast("Choisis une offre ou une cible");
       return;
     }
-    const cv = job.id ? ensureCvForJob(job) : CvTailor.generate({
-      profile: state.profile,
-      job,
-      bridge: Passerelles.findBridges(state.profile).bridges[0] || null,
-      memory: ApplyMemory.lessonsRelevant(state, job),
-    });
+    const cv = job.id
+      ? ensureCvForJob(job)
+      : (core()?.docs?.cv?.({
+          profile: state.profile,
+          job,
+          bridge: Passerelles.findBridges(state.profile).bridges[0] || null,
+          memory: ApplyMemory.lessonsRelevant(state, job),
+        }) ||
+        CvTailor.generate({
+          profile: state.profile,
+          job,
+          bridge: Passerelles.findBridges(state.profile).bridges[0] || null,
+          memory: ApplyMemory.lessonsRelevant(state, job),
+        }));
     if (!job.id) {
       state.cvVersions.unshift(cv);
       state.cvVersions = state.cvVersions.slice(0, 40);
@@ -1150,7 +1222,7 @@
     }
     persist();
     renderCvStudio();
-    toast("CV généré — corrige si besoin puis PDF");
+    toast(`CV généré (${cv.path || "local"}) — corrige si besoin puis PDF`);
   }
 
   function reviseCvNl() {
@@ -1452,6 +1524,18 @@
             const r = jobContext(job).readiness;
             return `<span class="chip ${chipClass(r.tone)}" style="margin-left:0.35rem">Ready ${r.total}%</span>`;
           })()}
+          ${pathChip("local", "AscendCore — local first")}
+          ${
+            state.connectors?.gmailClientId || state.connectors?.gmailConnected
+              ? pathChip("upgrade", "Gmail OAuth disponible")
+              : ""
+          }
+          ${
+            typeof AscendResilience !== "undefined" &&
+            AscendResilience.statusReport().some((h) => h.cooling)
+              ? pathChip("cooldown", "Hôte en circuit breaker")
+              : ""
+          }
           ${
             prime.urgency === "apply_now"
               ? `<span class="chip chip-ok" style="margin-left:0.35rem">APPLY NOW</span>`
@@ -1605,6 +1689,7 @@
       buildPack: (id) => buildAutofillPack(id),
       ensureCv: (job) => ensureCvForJob(job),
       refreshFresh: fetchFreshJobs,
+      prepareOutreach: (job) => prepareOutreachViaCore({ job }),
     };
     const onNeedProfile = async (miss) => askProfileGapsInteractive(miss);
     const onStep = (s) => append(s.message || s.phase);
@@ -1821,13 +1906,13 @@
       return;
     }
     if (el) el.textContent = `MX check ${domain}…`;
-    const r = await EmailFinder.checkDomainMx(domain);
+    const r = await (core()?.email?.checkMx?.(domain) || EmailFinder.checkDomainMx(domain));
     if (el) {
       el.textContent = r.ok
         ? `MX OK pour ${domain} (${(r.mx || []).slice(0, 2).join(", ") || "records"}) — domaine accepte le mail`
         : `Pas de MX clair pour ${domain}${r.error ? " · " + r.error : ""} — vérifie le domaine`;
     }
-    toast(r.ok ? "MX OK" : "MX manquant / douteux");
+    toast(r.ok ? `MX OK (${r.path || "local"})` : `MX manquant / douteux (${r.path || "degraded"})`);
   }
 
   async function optionalApiEnrich() {
@@ -1844,7 +1929,12 @@
       underIaApiKey: state.connectors.underIaApiKey || $("#under-ia-key")?.value.trim() || "",
       underIaApiBase: state.connectors.underIaApiBase || $("#under-ia-base")?.value.trim() || "",
     };
-    const out = await LocalStack.resolveEmails({
+    const resolve = core()?.email?.resolve || core()?.resolveEmails;
+    if (!resolve) {
+      toast("AscendCore indisponible");
+      return;
+    }
+    const out = await resolve({
       domain,
       fullName,
       connectors,
@@ -2018,17 +2108,11 @@
       toast("Aucun email candidat");
       return;
     }
-    const draft = EmailFinder.buildDualOutreach({
-      profile: state.profile,
-      job,
-      contact,
-      email,
-    });
-    const result = await Connectors.sendOrDraft({
+    const draft = prepareOutreachViaCore({ job, contact, email });
+    const result = await sendViaCore({
       to: draft.to || email,
       subject: draft.subject,
       body: draft.body,
-      confirm: true,
     });
     if (result.ok) {
       WeeklyPlan.log("outreach", { kind: "gmail_send", to: email, jobId: contact.jobId });
@@ -2231,7 +2315,9 @@
 
     if (status) status.textContent = "Agrégation locale / fallback (0 clé requise)…";
     try {
-      const { jobs: incoming, report, path, degraded } = await LocalStack.aggregateJobs({
+      const aggregate = core()?.jobs?.aggregate || core()?.aggregateJobs;
+      if (!aggregate) throw new Error("AscendCore indisponible");
+      const { jobs: incoming, report, path, degraded } = await aggregate({
         query: q,
         hours,
         enabledIds,
@@ -2403,9 +2489,9 @@
       if (!saveConnectorFields()) return;
       const id = state.connectors.gmailClientId;
       if (!id) {
-        LocalStack.bindLocalSession(state.profile, "local");
+        core()?.session?.bindLocal?.(state.profile, "local");
         const draft = Connectors.buildRecruiterOutreach(state.profile, state.jobs[0]);
-        Connectors.mailtoDraft(draft);
+        core()?.openMailDraft?.(draft) || Connectors.mailtoDraft(draft);
         toast("Sans Client ID → mailto / Gmail web (local). OAuth reste optionnel.");
         return;
       }
@@ -2485,21 +2571,26 @@
     if ($("#gemini-last-chip")) $("#gemini-last-chip").textContent = `IA · ${geminiTxt}`;
 
     const capRoot = $("#local-stack-caps");
-    if (capRoot && typeof LocalStack !== "undefined") {
-      let health = "";
-      if (typeof AscendResilience !== "undefined") {
-        const down = AscendResilience.statusReport().filter((h) => h.cooling);
-        if (down.length) {
-          health = `<p style="color:var(--mist);font-size:0.8rem;margin:0.5rem 0 0">Hôtes en cooldown (down): ${down
-            .map((h) => escapeHtml(h.host))
-            .join(", ")} — l’app continue en local/cache.</p>`;
-        }
+    const facade = core();
+    if (capRoot && facade) {
+      const h = facade.health?.(state) || { cooling: [], mode: "ok" };
+      const sum = facade.stackSummary?.(state);
+      let healthNote = "";
+      if (h.cooling?.length) {
+        healthNote = `<p style="color:var(--mist);font-size:0.8rem;margin:0.5rem 0 0">Cooldown (hôtes down): ${h.cooling
+          .map((x) => escapeHtml(x.host))
+          .join(", ")} — l’app continue en local/cache.</p>`;
+      } else if (sum) {
+        healthNote = `<p style="color:var(--mist);font-size:0.8rem;margin:0.5rem 0 0">${escapeHtml(
+          sum.text
+        )} — labels unifiés local / upgrade / cooldown.</p>`;
       }
       capRoot.innerHTML =
-        `<p style="color:var(--mist);font-size:0.82rem;margin:0 0 0.5rem">Sans connecteur / clé / si un service est down : stack locale + cache.</p>` +
-        LocalStack.statusChipsHtml(state, escapeHtml) +
-        health;
+        `<p style="color:var(--mist);font-size:0.82rem;margin:0 0 0.5rem">Une logique pour tous les modules (AscendCore) : upgrade → soft-fail → local. Jamais bloquer CV / file / profil / AutoFill.</p>` +
+        (facade.statusChipsHtml?.(state, escapeHtml) || "") +
+        healthNote;
     }
+    renderStackChip();
 
     const grid = $("#oneclick-grid");
     if (grid) {
@@ -2658,9 +2749,13 @@
       const hitsRoot = $("#enrich-hits");
       if (hitsRoot) hitsRoot.textContent = "Recherche publique…";
       try {
-        const out = await PublicEnrich.fetchWikidataHints(state.profile.fullName);
+        const out = await (core()?.enrich?.public?.(state.profile.fullName) ||
+          PublicEnrich.fetchWikidataHints(state.profile.fullName));
         if (!out.ok || !out.hits?.length) {
-          if (hitsRoot) hitsRoot.innerHTML = `<p style="color:var(--mist)">Aucun hint public — essaie un collage manuel.</p>`;
+          if (hitsRoot)
+            hitsRoot.innerHTML = `<p style="color:var(--mist)">Aucun hint public (${escapeHtml(
+              out.path || "—"
+            )}) — essaie un collage manuel.</p>`;
           return;
         }
         if (hitsRoot) {
@@ -2672,7 +2767,7 @@
             )
             .join("");
         }
-        toast(`${out.hits.length} hint(s) publics`);
+        toast(`${out.hits.length} hint(s) publics (${out.path || "wikidata"})`);
       } catch (e) {
         toast(e.message || "Enrichissement indisponible");
       }
@@ -2729,7 +2824,7 @@
       if (smart.vectorIds?.length) state.profile.activeVectors = smart.vectorIds;
       persist();
       render();
-      toast("LinkedIn importé — passerelles & vecteurs recalculés");
+      toast("LinkedIn importé (local, pas d’API requise) — passerelles & vecteurs recalculés");
     });
 
     $("#btn-orient-cv")?.addEventListener("click", orientCvFromPasserelle);
@@ -2751,7 +2846,7 @@
       persist();
       renderProfile();
       renderConnectors();
-      toast("Import IA fusionné");
+      toast("Import IA fusionné (local, pas d’API AscendOS requise)");
     });
 
     $("#btn-session-google")?.addEventListener("click", startGoogleSession);
@@ -2952,11 +3047,10 @@
         const draft = Connectors.buildRecruiterOutreach(state.profile, job);
         const body = `${draft.body}\n\n---\nRéponses formulaire ATS/CRM:\n${item.answer}`;
         persist();
-        Connectors.sendOrDraft({
+        sendViaCore({
           to: draft.to || "",
           subject: draft.subject,
           body,
-          confirm: true,
         }).then((r) => {
           if (r.ok) {
             WeeklyPlan.log("outreach", { jobId: item.jobId });
@@ -3036,17 +3130,16 @@
         if (role === "auto") role = EmailFinder.detectRole(title);
         const jobId = $("#ef-job")?.value || "";
         const job = state.jobs.find((j) => j.id === jobId);
-        const draft = EmailFinder.buildDualOutreach({
-          profile: state.profile,
+        const facade = core();
+        const draft = prepareOutreachViaCore({
           job: job || { title: title || "le poste", company: $("#ef-domain")?.value || "" },
           contact: { fullName, role },
           email,
         });
-        Connectors.sendOrDraft({
+        sendViaCore({
           to: draft.to || email,
           subject: draft.subject,
           body: draft.body,
-          confirm: true,
         }).then((r) => {
           if (r.ok) {
             WeeklyPlan.log("outreach", { to: email });

@@ -31,10 +31,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          # package-lock may be absent on first clone; cache optional
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install wrangler
-        run: npm ci || npm install
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - name: Check secrets
         id: check

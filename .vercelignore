@@ -1,0 +1,11 @@
+# Keep Vercel deploys lean (static UI + serverless aggregate only)
+.github
+.git
+node_modules
+.vercel
+*.md
+!README.md
+docs
+server
+agent-transcripts
+.cursor

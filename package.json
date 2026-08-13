@@ -6,6 +6,7 @@
   "description": "Career accelerator — static UI + optional free-tier aggregate APIs",
   "scripts": {
     "start:oracle": "node server/oracle-aggregate.mjs",
+    "check": "node --check assets/js/local-stack.js && node --check assets/js/app.js && node --check assets/js/freshness.js && node --check assets/js/batch-apply.js && node --check assets/js/workflows.js && node --check assets/js/connectors.js",
     "deploy:cf": "wrangler deploy",
     "deploy:vercel": "vercel --prod"
   },

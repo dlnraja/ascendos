@@ -119,7 +119,10 @@ const ProfileImporter = (() => {
     return next;
   }
 
-  return { fromAiPayload, fromLinkedInPaste, applyPatch, tryParseJson };
+  /** Paste import is the local source of truth — no API / OAuth required. */
+  const NOTICE = "Import collé = source locale (pas d’API requise).";
+
+  return { fromAiPayload, fromLinkedInPaste, applyPatch, tryParseJson, NOTICE };
 })();
 
 window.ProfileImporter = ProfileImporter;

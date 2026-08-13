@@ -13,3 +13,4 @@ secrets/
 oauth-tokens.json
 *.pem
 *.p12
+.vercel/

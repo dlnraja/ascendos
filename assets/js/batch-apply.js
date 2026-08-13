@@ -67,6 +67,25 @@ const BatchApply = (() => {
       if (helpers?.ensureCv) helpers.ensureCv(job);
       if (helpers?.ensureInterview && cfg.interview) helpers.ensureInterview(job);
 
+      // Prepare outreach text only — never auto-send (Gmail confirm stays in UI)
+      if (helpers?.prepareOutreach) {
+        try {
+          const draft = helpers.prepareOutreach(job);
+          if (draft) job.outreachDraft = draft;
+        } catch {
+          /* local only */
+        }
+      } else if (typeof AscendCore !== "undefined" && AscendCore.email?.prepareOutreach) {
+        try {
+          job.outreachDraft = AscendCore.email.prepareOutreach({
+            profile: state.profile,
+            job,
+          });
+        } catch {
+          /* local only */
+        }
+      }
+
       let readiness = null;
       if (helpers?.readiness) {
         readiness = helpers.readiness(job);
