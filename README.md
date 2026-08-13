@@ -14,6 +14,10 @@
 
 Docs : [`docs/CAREER_VECTORS.md`](docs/CAREER_VECTORS.md) · [`docs/PASSERELLES.md`](docs/PASSERELLES.md)
 
+## GitHub Pages + free backends
+
+Si le navigateur ne suffit pas (CORS / RSS) : Cloudflare Workers, Vercel Hobby, Oracle Always Free — guide [`docs/FREE_HOSTING.md`](docs/FREE_HOSTING.md).
+
 ## Modules (inspirations → AscendOS)
 
 | Inspiration | Module AscendOS |

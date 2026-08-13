@@ -50,6 +50,8 @@ const AscendStore = (() => {
       lastGeminiImportAt: null,
       adzunaAppId: "",
       adzunaAppKey: "",
+      /** Optional free-tier backend: Cloudflare Worker / Vercel / Oracle */
+      aggregateApiBase: "",
     },
     settings: {
       preferEndClient: true,

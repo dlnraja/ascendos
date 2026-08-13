@@ -1086,20 +1086,39 @@
 
     if (status) status.textContent = "Agrégation polie en cours (throttle + sources officielles)…";
     try {
-      const { jobs: incoming, report } = await FreshRadar.fetchAllFresh({
-        query: q,
-        hours,
-        enabledIds,
-        customRss,
-        apiKeys: {
-          adzunaAppId: state.connectors.adzunaAppId,
-          adzunaAppKey: state.connectors.adzunaAppKey,
-        },
-        force: false,
-        onProgress: (p) => {
-          if (status) status.textContent = `${p.label || p.id}: ${p.status}${p.count != null ? ` (${p.count})` : ""}`;
-        },
-      });
+      let incoming = [];
+      let report = [];
+      const apiBase = (state.connectors.aggregateApiBase || "").replace(/\/$/, "");
+
+      if (apiBase) {
+        if (status) status.textContent = `Via backend gratuit ${apiBase}…`;
+        const res = await fetch(`${apiBase}/aggregate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ query: q, hours, sources: enabledIds, rss: customRss }),
+        });
+        if (!res.ok) throw new Error(`API ${res.status}`);
+        const data = await res.json();
+        incoming = data.jobs || [];
+        report = data.report || [{ id: "backend", status: "ok", count: incoming.length }];
+      } else {
+        const out = await FreshRadar.fetchAllFresh({
+          query: q,
+          hours,
+          enabledIds,
+          customRss,
+          apiKeys: {
+            adzunaAppId: state.connectors.adzunaAppId,
+            adzunaAppKey: state.connectors.adzunaAppKey,
+          },
+          force: false,
+          onProgress: (p) => {
+            if (status) status.textContent = `${p.label || p.id}: ${p.status}${p.count != null ? ` (${p.count})` : ""}`;
+          },
+        });
+        incoming = out.jobs || [];
+        report = out.report || [];
+      }
 
       let added = 0;
       for (const job of incoming) {
@@ -1186,6 +1205,7 @@
     $("#linkedin-client-id").value = state.connectors.linkedinClientId || "";
     if ($("#adzuna-app-id")) $("#adzuna-app-id").value = state.connectors.adzunaAppId || "";
     if ($("#adzuna-app-key")) $("#adzuna-app-key").value = state.connectors.adzunaAppKey || "";
+    if ($("#aggregate-api-base")) $("#aggregate-api-base").value = state.connectors.aggregateApiBase || "";
     $("#gmail-status").textContent = state.connectors.gmailConnected || Connectors.getStoredToken()
       ? "Session token présente"
       : "Non connecté (import / mailto OK)";
@@ -1317,6 +1337,7 @@
       });
       state.connectors.adzunaAppId = $("#adzuna-app-id")?.value.trim() || "";
       state.connectors.adzunaAppKey = $("#adzuna-app-key")?.value.trim() || "";
+      state.connectors.aggregateApiBase = $("#aggregate-api-base")?.value.trim().replace(/\/$/, "") || "";
       persist();
       toast("Connecteurs / clés sauvés (localStorage)");
     });
