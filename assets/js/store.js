@@ -30,14 +30,26 @@ const AscendStore = (() => {
       yearsExp: 3,
       skills: [],
       experiences: [],
+      education: [],
       languages: ["Français", "Anglais"],
       careerGoal: "Obtenir un meilleur job : plus de levier, de rémunération et d'évolution — via la bonne passerelle.",
       linkedinUrl: "",
       aiImports: [],
+      /** Accepted work arrangements — uncheck what you refuse */
+      workPrefs: {
+        modes: ["onsite_local", "hybrid", "full_remote", "remote_fr", "flex_days"],
+        preferredLocations: [],
+        excludeLocations: [],
+        notes: "",
+        configured: false,
+      },
     },
     jobs: [],
     applyQueue: [],
     cvVersions: [],
+    letters: [],
+    /** Outcomes / emails / lessons from candidatures (local) */
+    applyMemory: [],
     /** Learned email nomenclatures by domain from public samples */
     emailPatterns: {},
     /** RH / CP / hiring managers linked to jobs */
@@ -51,7 +63,9 @@ const AscendStore = (() => {
       adzunaAppId: "",
       adzunaAppKey: "",
       hunterApiKey: "",
-      /** Optional free-tier backend: Cloudflare Worker / Vercel / Oracle */
+      /** Under IA optional free API */
+      underIaApiKey: "",
+      underIaApiBase: "",
       aggregateApiBase: "",
     },
     settings: {
@@ -88,7 +102,10 @@ const AscendStore = (() => {
   }
 
   function save(state) {
-    localStorage.setItem(KEY, JSON.stringify(state));
+    // Never persist API keys / Client IDs in plaintext — vault handles secrets.
+    const safe =
+      typeof AscendSecurity !== "undefined" ? AscendSecurity.stripStateSecrets(state) : state;
+    localStorage.setItem(KEY, JSON.stringify(safe));
   }
 
   function deepMerge(base, patch) {

@@ -1,0 +1,56 @@
+# Deploy AscendOS on Vercel Hobby (front + /api/aggregate) — free
+# Secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+# Docs: docs/FREE_HOSTING.md
+
+name: Deploy Vercel
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "api/**"
+      - "shared/**"
+      - "vercel.json"
+      - "index.html"
+      - "app.html"
+      - "assets/**"
+      - ".github/workflows/deploy-vercel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Ajoute VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID puis relance (workflow_dispatch)."
+            echo "Créer le projet une fois: npx vercel link"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy production
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          npm i -g vercel@39
+          vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

@@ -1,51 +1,59 @@
 # Connecteurs AscendOS
 
-## Principe local-first
+## Session optionnelle (privacy)
 
-AscendOS sur GitHub Pages ne possède **pas** de backend. Tes données (CV, offres, tokens OAuth) restent dans le navigateur.
+AscendOS **n’a pas de base utilisateurs**. Une session Google (OAuth identité) ou une liaison LinkedIn locale sert seulement à afficher qui utilise *cet* appareil. Voir [`PRIVACY.md`](PRIVACY.md).
 
-| Mode | Ce que ça fait | Quand l'utiliser |
-|------|----------------|------------------|
-| Import manuel | Coller texte LinkedIn / Gemini / CV | Toujours (fonctionne offline) |
-| OAuth config | Stocke Client ID localement | Quand tu as créé des apps Google/LinkedIn |
-| Blueprint `functions/` | Proxy OAuth + Gmail send | Production réelle |
+## Principe
 
-## Gmail (Google Cloud)
+Sur GitHub Pages (statique), **pas de backend secret**. Deux chemins simples :
 
-1. [Google Cloud Console](https://console.cloud.google.com/) → créer un projet.
-2. Activer **Gmail API**.
-3. Credentials → OAuth 2.0 Client → type **Web application**.
-4. Authorized JavaScript origins : `https://<user>.github.io` et `http://localhost:3000`.
-5. Authorized redirect URIs : `https://<user>.github.io/ascendos/app.html` (et local).
-6. Scopes demandés côté app : `gmail.compose` (brouillons) — pas `gmail.modify` tant que non nécessaire.
-7. Coller le Client ID dans **App → Connecteurs**.
+1. **One-click / deep links** — ouvrir mail, réseau pro, vault IA, portails API…
+2. **Magic link chiffré** — URL `#ml.…` (AES-GCM) qui injecte Client IDs + clés API après passphrase.
 
-Sans backend, le flux PKCE peut ouvrir Google et récupérer un access token court ; l'envoi d'emails complexes reste plus fiable via le blueprint Functions.
+Les secrets vivent dans le **coffre** — voir [`SECURITY.md`](SECURITY.md).
 
-## LinkedIn
+| Mode | Ce que ça fait |
+|------|----------------|
+| One-click | Deep link service |
+| Magic link v2 | Payload chiffré (passphrase) |
+| OAuth 1-clic | Client ID depuis le coffre + `state` anti-CSRF |
+| Avancé | Formulaire clés (replié) → sauve dans le coffre |
+| Import manuel | Coller profil / export IA dans Profil Vault |
 
-1. [LinkedIn Developers](https://www.linkedin.com/developers/) → Create app.
-2. Products : **Sign In with LinkedIn** (+ OpenID si dispo).
-3. Redirect URL = URL de ton app Pages.
-4. Coller Client ID dans Connecteurs.
-5. Limite API : LinkedIn restreint fortement le scrape de profil. L'import **copier-coller** du profil public reste le chemin le plus fiable.
+## Magic link
 
-## Gemini / Google Workspace / autres IA
+1. Connecteurs → **Activer passphrase** (≥ 8 caractères).
+2. Remplir les clés (avancé) → **Sauver dans le coffre**.
+3. **Copier magic link chiffré**.
+4. Sur un autre appareil : coller le lien + passphrase → **Appliquer**.
 
-Pas d'API obligatoire. Workflow recommandé :
+> Ne partage un magic link qu’avec toi-même.
 
-1. Dans Gemini / ChatGPT / Claude Workspace, demande :
-   > « À partir de mon CV et de mon historique, produis un profil JSON avec : headline, summary, experiences[], skills[], languages[], target_roles[], career_goal. »
-2. Colle le résultat dans **AI Vault**.
-3. AscendOS parse le JSON ou le texte libre et enrichit ton profil.
+## One-click
 
-Tu peux aussi exporter un `.md` / `.txt` depuis Google Docs et le coller.
+| Bouton | Action |
+|--------|--------|
+| Ouvrir mail | Deep link compose |
+| Connecter mail | OAuth implicite + nonce `state` |
+| Ouvrir réseau pro | Profil |
+| Connecter OAuth | Si Client ID présent |
+| Vault IA | Prompt AscendOS + ouverture IA |
+| Clés API | Pages free-tier → coller dans le coffre |
+
+## OAuth mail (optionnel)
+
+1. Console cloud → client OAuth Web.
+2. Origins / redirect = ton URL Pages + `app.html`.
+3. Scope compose / brouillons.
+4. Client ID → coffre → magic link chiffré.
+
+Le token access est stocké de façon sécurisée en session (pas d’export JSON).
+
+## Réseau pro
+
+L’API officielle reste limitée : collage de profil + one-click restent les plus fiables.
 
 ## Blueprint backend (optionnel)
 
-Voir `functions/README.md` pour un Worker Cloudflare minimal qui :
-
-- échange `code` OAuth → tokens
-- stocke refresh token chiffré côté user (KV)
-- envoie des brouillons Gmail
-- ne log jamais le corps des CV
+Voir `functions/README.md` pour refresh tokens / envoi mail réel.

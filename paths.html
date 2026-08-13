@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>AscendOS — Carte des évolutions</title>
+    <meta
+      name="description"
+      content="Dashboard interactif des passerelles de carrière et des moyens d’y parvenir — AscendOS, local-first."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Syne:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/main.css" />
+    <link rel="stylesheet" href="assets/css/paths.css" />
+  </head>
+  <body class="paths-body">
+    <header class="site-nav paths-nav">
+      <a class="brand" href="./">
+        <span class="brand-mark" aria-hidden="true"></span>
+        AscendOS
+      </a>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="app.html#cockpit">One-Click</a>
+        <a class="btn btn-primary" href="app.html#passerelles">Ouvrir l’atelier</a>
+      </div>
+    </header>
+
+    <main class="paths-shell">
+      <header class="paths-hero">
+        <p class="section-kicker">Carte vivante</p>
+        <h1>Comment évoluer</h1>
+        <p class="paths-sub">Clique une famille, un pont, un levier — vois le chemin, pas un pavé.</p>
+        <div class="paths-modes" role="tablist" aria-label="Modes">
+          <button type="button" class="paths-mode active" data-mode="bridges" role="tab" aria-selected="true">Passerelles</button>
+          <button type="button" class="paths-mode" data-mode="vectors" role="tab" aria-selected="false">Vecteurs</button>
+          <button type="button" class="paths-mode" data-mode="breaks" role="tab" aria-selected="false">Coups de levier</button>
+        </div>
+      </header>
+
+      <div class="paths-stage">
+        <div class="paths-map-wrap">
+          <svg class="paths-svg" id="paths-svg" viewBox="0 0 900 640" role="img" aria-label="Constellation des évolutions"></svg>
+          <div class="paths-legend" id="paths-legend"></div>
+        </div>
+
+        <aside class="paths-sheet" id="paths-sheet" hidden>
+          <button type="button" class="paths-sheet-close" id="paths-sheet-close" aria-label="Fermer">×</button>
+          <div class="paths-sheet-kicker" id="sheet-kicker">Parcours</div>
+          <h2 id="sheet-title">—</h2>
+          <div class="paths-meters" id="sheet-meters"></div>
+          <div class="paths-steps" id="sheet-steps"></div>
+          <div class="paths-skills" id="sheet-skills"></div>
+          <div class="paths-sheet-cta">
+            <a class="btn btn-primary" id="sheet-cta" href="app.html#passerelles">Activer dans l’app</a>
+          </div>
+        </aside>
+      </div>
+
+      <section class="paths-rail" id="paths-rail" aria-label="Parcours rapides"></section>
+    </main>
+
+    <script src="assets/js/passerelles.js"></script>
+    <script src="assets/js/career-vectors.js"></script>
+    <script src="assets/js/paths-dashboard.js"></script>
+  </body>
+</html>

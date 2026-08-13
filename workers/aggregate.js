@@ -1,5 +1,6 @@
 /**
- * Cloudflare Worker — AscendOS aggregate API (free tier)
+ * Cloudflare Worker — AscendOS aggregate API (free tier only).
+ * No user PII. No durable storage of requests. Soft rate-limit.
  * Deploy: npx wrangler deploy
  */
 import { aggregateServer, corsHeaders } from "../shared/aggregate-core.mjs";
@@ -14,7 +15,10 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/health") {
-      return json({ ok: true, service: "ascendos-cf" }, origin);
+      return json(
+        { ok: true, service: "ascendos-cf", privacy: "no_user_data_stored", freeTierOnly: true },
+        origin
+      );
     }
 
     if (url.pathname !== "/aggregate" && url.pathname !== "/") {
@@ -33,13 +37,27 @@ export default {
         hours = Number(body.hours || hours);
         sources = body.sources || sources;
         rss = body.rss || rss;
+        // Reject accidental PII keys early
+        const bodyKeys = Object.keys(body || {});
+        if (
+          bodyKeys.some((k) =>
+            /profile|email|phone|cv|token|password|hunter|linkedin|contact/i.test(k)
+          )
+        ) {
+          return json({ error: "pii_forbidden", message: "No personal data accepted" }, origin, 400);
+        }
       } catch {
         /* ignore */
       }
     }
 
-    const result = await aggregateServer({ query, hours, sources, rss });
-    return json(result, origin);
+    try {
+      const result = await aggregateServer({ query, hours, sources, rss }, request);
+      return json(result, origin);
+    } catch (e) {
+      const code = e.code === 429 ? 429 : e.code === 400 ? 400 : 500;
+      return json({ error: String(e.message || e), freeTierOnly: true }, origin, code);
+    }
   },
 };
 

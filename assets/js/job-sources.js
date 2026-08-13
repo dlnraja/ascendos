@@ -213,6 +213,9 @@ const JobSources = (() => {
   }
 
   async function fetchJson(url, opts = {}) {
+    if (typeof AscendResilience !== "undefined") {
+      return AscendResilience.fetchJson(url, opts);
+    }
     const res = await fetch(url, {
       ...opts,
       headers: {
@@ -390,6 +393,7 @@ const JobSources = (() => {
    * User should prefer self-hosted bridge for heavy use.
    */
   async function pullRssFeed(rssUrl, sourceId, hours) {
+    if (typeof AscendQuotas !== "undefined") AscendQuotas.consume("rss2json");
     const bridge = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
     const data = await fetchJson(bridge);
     if (data.status && data.status !== "ok") throw new Error(data.message || "RSS parse fail");
@@ -414,10 +418,13 @@ const JobSources = (() => {
 
   async function pullAdzuna(query, hours, keys) {
     if (!keys?.adzunaAppId || !keys?.adzunaAppKey) {
-      throw new Error("Adzuna: renseigne APP_ID + APP_KEY");
+      const err = new Error("Adzuna skipped — no keys (local sources compensate)");
+      err.code = "NO_KEY";
+      throw err;
     }
+    if (typeof AscendQuotas !== "undefined") AscendQuotas.consume("adzuna");
     const what = encodeURIComponent(query || "developer");
-    const url = `https://api.adzuna.com/v1/api/jobs/fr/search/1?app_id=${keys.adzunaAppId}&app_key=${keys.adzunaAppKey}&results_per_page=30&what=${what}&max_days_old=${Math.max(1, Math.ceil(hours / 24))}`;
+    const url = `https://api.adzuna.com/v1/api/jobs/fr/search/1?app_id=${keys.adzunaAppId}&app_key=${keys.adzunaAppKey}&results_per_page=20&what=${what}&max_days_old=${Math.max(1, Math.ceil(hours / 24))}`;
     const data = await fetchJson(url);
     return (data.results || []).map((j) =>
       normJob({
@@ -505,6 +512,12 @@ const JobSources = (() => {
         report.push({ id: source.id, status: "ok", count: jobs.length, note: source.freshnessNote });
         onProgress?.({ id: source.id, status: "ok", count: jobs.length });
       } catch (e) {
+        if (e.code === "NO_KEY") {
+          report.push({ id: source.id, status: "skipped_no_key", note: e.message });
+          onProgress?.({ id: source.id, status: "skipped_no_key" });
+          await sleep(delayBetween);
+          return;
+        }
         const cached = getCached(source.id, 7 * 24 * 3600 * 1000);
         if (cached?.length) {
           all.push(...cached);

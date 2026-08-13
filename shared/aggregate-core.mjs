@@ -1,6 +1,7 @@
 /**
  * Shared polite aggregator core (Cloudflare Worker + Vercel + Node/Oracle).
  * Official APIs/RSS only. No anti-bot bypass.
+ * GDPR: never accept / log / store end-user profile data — job query only.
  */
 
 const SOURCES_META = [
@@ -11,6 +12,81 @@ const SOURCES_META = [
   { id: "himalayas", minIntervalMs: 86400000 },
 ];
 
+const PII_KEYS = [
+  "profile",
+  "cv",
+  "resume",
+  "email",
+  "phone",
+  "contacts",
+  "fullname",
+  "linkedin",
+  "token",
+  "access_token",
+  "api_key",
+  "apikey",
+  "password",
+  "passphrase",
+  "hunter",
+];
+
+/** In-memory soft rate limit (per isolate) — stay in free Worker ranges. */
+const rateBuckets = new Map();
+const RATE_MAX_PER_HOUR = 30;
+
+function clientKey(requestLike) {
+  try {
+    const h = requestLike?.headers;
+    if (h && typeof h.get === "function") {
+      return h.get("CF-Connecting-IP") || h.get("x-forwarded-for") || "anon";
+    }
+  } catch {
+    /* ignore */
+  }
+  return "anon";
+}
+
+function checkRateLimit(ip) {
+  const hour = Math.floor(Date.now() / 3600000);
+  const key = `${ip}:${hour}`;
+  const n = rateBuckets.get(key) || 0;
+  if (n >= RATE_MAX_PER_HOUR) {
+    const e = new Error("rate_limited_free_tier");
+    e.code = 429;
+    throw e;
+  }
+  rateBuckets.set(key, n + 1);
+  // prune old
+  if (rateBuckets.size > 5000) {
+    for (const k of rateBuckets.keys()) {
+      if (!k.endsWith(`:${hour}`)) rateBuckets.delete(k);
+    }
+  }
+}
+
+function assertNoPii(obj) {
+  if (!obj || typeof obj !== "object") return;
+  for (const k of Object.keys(obj)) {
+    const low = k.toLowerCase();
+    if (PII_KEYS.some((f) => low.includes(f))) {
+      const e = new Error("pii_forbidden");
+      e.code = 400;
+      throw e;
+    }
+  }
+}
+
+function sanitizeOpts(opts = {}) {
+  assertNoPii(opts);
+  return {
+    query: String(opts.query || "").slice(0, 120),
+    hours: Math.min(168, Math.max(1, Number(opts.hours) || 24)),
+    sources: Array.isArray(opts.sources) ? opts.sources.map(String).slice(0, 20) : [],
+    rss: Array.isArray(opts.rss)
+      ? opts.rss.filter((u) => /^https?:\/\//i.test(String(u))).map(String).slice(0, 5)
+      : [],
+  };
+}
 function stripHtml(html) {
   return String(html || "")
     .replace(/<[^>]+>/g, " ")
@@ -225,12 +301,14 @@ function sleep(ms) {
  * @param {string[]} [opts.sources]
  * @param {string[]} [opts.rss]
  */
-async function aggregateServer(opts = {}) {
-  const query = opts.query || "";
-  const hours = Number(opts.hours) || 24;
+async function aggregateServer(opts = {}, requestLike = null) {
+  if (requestLike) checkRateLimit(clientKey(requestLike));
+  const clean = sanitizeOpts(opts);
+  const query = clean.query;
+  const hours = clean.hours;
   const want = new Set(
-    opts.sources && opts.sources.length
-      ? opts.sources
+    clean.sources.length
+      ? clean.sources
       : ["remotive", "remoteok", "arbeitnow", "jobicy", "himalayas"]
   );
   const report = [];
@@ -243,7 +321,7 @@ async function aggregateServer(opts = {}) {
       all.push(...jobs);
       report.push({ id, status: "ok", count: jobs.length });
     } catch (e) {
-      report.push({ id, status: "error", note: String(e.message || e) });
+      report.push({ id, status: "error", note: String(e.message || e).slice(0, 120) });
     }
     await sleep(400);
   }
@@ -266,13 +344,13 @@ async function aggregateServer(opts = {}) {
     }
   }
 
-  for (const rss of (opts.rss || []).slice(0, 8)) {
+  for (const rss of clean.rss) {
     try {
       const jobs = await pullRss(rss, "custom_rss", hours);
       all.push(...jobs);
-      report.push({ id: "custom_rss", status: "ok", count: jobs.length, rss });
+      report.push({ id: "custom_rss", status: "ok", count: jobs.length });
     } catch (e) {
-      report.push({ id: "custom_rss", status: "error", note: String(e.message || e), rss });
+      report.push({ id: "custom_rss", status: "error", note: String(e.message || e).slice(0, 120) });
     }
     await sleep(400);
   }
@@ -293,7 +371,8 @@ async function aggregateServer(opts = {}) {
     report,
     fetchedAt: new Date().toISOString(),
     provider: "ascendos-aggregate",
-    meta: { sources: SOURCES_META },
+    privacy: "no_user_data_stored",
+    meta: { sources: SOURCES_META, rateMaxPerHour: RATE_MAX_PER_HOUR },
   };
 }
 
@@ -307,4 +386,4 @@ function corsHeaders(origin) {
   };
 }
 
-export { aggregateServer, corsHeaders, SOURCES_META };
+export { aggregateServer, corsHeaders, SOURCES_META, sanitizeOpts, assertNoPii };

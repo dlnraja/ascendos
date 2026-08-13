@@ -1,4 +1,4 @@
-/** ATS keyword match (Jobscan-inspired, client-side) */
+/** ATS keyword match (client-side) */
 const AtsEngine = (() => {
   const STOP = new Set(
     `le la les un une des de du et ou a à au aux en pour par sur avec sans dans ce cet cette ces qui que dont où il elle ils elles je tu nous vous mon ma mes ton ta tes son sa ses leur leurs est sont être avoir fait faire plus moins très comme si mais donc car ni ne pas d the a an and or of to in for on with without this that these those is are be been being have has had do does did will would can could should may might into from as at by about over under again further then once here there when where why how all any both each few more most other some such no nor not only own same so than too very you your yours yourself yourselves i me my we our ours`.split(

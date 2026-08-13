@@ -1,27 +1,34 @@
-# AutoFill CRM & portails carrière
+# AutoFill, Batch & enrichissement public
 
-## Principe
+## AutoFill portails RH
 
-AscendOS fusionne :
-- profil **LinkedIn** (collé / import)
-- profil **IA Workspace / Gemini** (AI Vault)
+1. Génère un **pack** depuis le profil (+ offre).
+2. Glisse le **bookmarklet** dans les favoris.
+3. Sur la page candidature, clique le favori → champs remplis.
+4. **Données manquantes** → questions interactives (`prompt`) sur la page et/ou dans AscendOS (« Compléter gaps »).
 
-…en un **fill pack** (identité, LinkedIn URL, résumé, skills, lettre, etc.) mappé sur les noms de champs des ATS courants.
+Pas de submit automatique. Pas de contournement anti-bot.
 
-## Limitation GitHub Pages
+## Batch Apply / Loop Apply
 
-Une page statique **ne peut pas** injecter du JS dans `greenhouse.io` / `workday` depuis son origine.
-Solution fournie :
-1. **Bookmarklet** — à cliquer *sur* la page de candidature
-2. **Export JSON / CSV** — pour extensions ou usage manuel
-3. Bouton **Pack AutoFill CRM** depuis Apply Queue
+- **Batch** : enchaîne la file (lettre, readiness, pack, ouverture onglet URL).
+- **Loop** : 2 tours (option refresh radar entre les tours).
+- Toujours humain-in-the-loop pour l’envoi final sur le site RH.
 
-## Portails couverts (heuristiques)
+## Enrichissement (toi uniquement)
 
-Greenhouse, Lever, Workday, SmartRecruiters, Taleo, SuccessFactors, iCIMS, Ashby, Teamtailor, Welcome to the Jungle, Indeed, LinkedIn Easy Apply + générique.
+Sources **publiques / que tu contrôles** :
 
-## Sécurité / éthique
+- Profil public réseau pro, Google Docs/Drive (Workspace), Gmail
+- HAL, ORCID, Wikidata, data.gouv (recherche)
+- Collage manuel de diplômes / exports
 
-- Pas d'auto-submit : tu vérifies avant envoi
-- Pas d'invention de faits : seules les données du profil AscendOS
-- Upload fichier CV reste manuel (navigateur)
+AscendOS **ne scrappe pas** les comptes privés de tiers et **n’envoie** pas ton dossier à un serveur AscendOS.
+
+## Éthique
+
+| OK | Interdit |
+|----|----------|
+| Ton profil, tes exports | OSINT ciblant autrui |
+| Pages publiques te concernant | Contournement ATS / captcha |
+| Demandes interactives de champs | Auto-submit candidature |

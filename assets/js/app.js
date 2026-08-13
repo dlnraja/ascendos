@@ -15,7 +15,7 @@
       status: "saved",
       url: "",
       description:
-        "Poste interne client final. Lead une squad data produit, ownership roadmap, stack cloud, management de 5 ingénieurs. Package + intéressement.",
+        "Poste interne client final. Lead une squad data produit, ownership roadmap, stack cloud, management de 5 ingénieurs. Package 75-90k + intéressement + BSPCE possible.",
       tags: ["lead", "data", "interne", "cac 40"],
       postedAt: Date.now() - 25 * 60 * 1000,
       createdAt: Date.now(),
@@ -66,6 +66,93 @@
 
   function persist() {
     AscendStore.save(state);
+    AscendSecurity.persistSecretsFrom(state.connectors).catch(() => {
+      /* vault write best-effort */
+    });
+  }
+
+  function renderQuotas() {
+    const el = $("#quota-status");
+    if (!el || typeof AscendQuotas === "undefined") return;
+    el.innerHTML = AscendQuotas.statusList()
+      .map((u) => {
+        const tone = u.remaining <= 0 ? "chip-bad" : u.remaining <= Math.ceil(u.max * 0.2) ? "chip-warn" : "chip-ok";
+        return `<span class="chip ${tone}" title="${escapeHtml(u.period)}">${escapeHtml(u.label)} · ${u.used}/${u.max}</span>`;
+      })
+      .join("");
+  }
+
+  function renderSession() {
+    const s = AscendSession.load();
+    const text = AscendSession.label(s);
+    const ok = AscendSession.isSignedIn(s);
+    ["#session-chip", "#session-status"].forEach((sel) => {
+      const el = $(sel);
+      if (!el) return;
+      el.textContent = text;
+      el.className = `chip ${ok ? "chip-ok" : "chip-info"}`;
+    });
+    const out = $("#btn-session-out");
+    if (out) out.hidden = !ok;
+  }
+
+  async function startGoogleSession() {
+    const id = state.connectors.gmailClientId || $("#gmail-client-id")?.value.trim();
+    if (!id) {
+      // Compensate: local session from profile — no OAuth connector required
+      const sess = LocalStack.bindLocalSession(state.profile, "local");
+      if (sess && (sess.email || sess.name)) {
+        state.profile = AscendSession.mergeIntoProfile(state.profile, sess);
+        persist();
+        renderSession();
+        toast("Session locale (profil) — OAuth optionnel si tu ajoutes un Client ID plus tard");
+        return;
+      }
+      toast("Remplis email/nom dans le Profil pour une session locale, ou ajoute un Client ID Google");
+      navigate("profile");
+      return;
+    }
+    const redirect = window.location.href.split("#")[0].split("?")[0];
+    const nonce = AscendSecurity.createOAuthState("google_session");
+    window.location.href = AscendSession.buildGoogleSessionAuthUrl(id, redirect, nonce);
+  }
+
+  function bindLinkedInSessionLocal() {
+    const url = state.profile.linkedinUrl || $("#pf-linkedin")?.value.trim() || "";
+    const name = state.profile.fullName || $("#pf-name")?.value.trim() || "";
+    const email = state.profile.email || $("#pf-email")?.value.trim() || "";
+    if (!url && !name && !email) {
+      toast("Remplis d’abord le profil (nom / email / URL LinkedIn)");
+      navigate("profile");
+      return;
+    }
+    AscendSession.bindLinkedInLocal({ name, email, linkedinUrl: url });
+    state.profile = AscendSession.mergeIntoProfile(state.profile);
+    state.connectors.linkedinConnected = true;
+    persist();
+    renderSession();
+    renderConnectors();
+    toast("Session LinkedIn liée localement — rien envoyé à AscendOS");
+  }
+
+  function signOutSession() {
+    AscendSession.clear();
+    AscendSecurity.clearOAuthToken();
+    state.connectors.gmailConnected = false;
+    state.connectors.linkedinConnected = false;
+    persist();
+    renderSession();
+    renderConnectors();
+    toast("Session terminée — données métier toujours locales");
+  }
+
+  function lockVaultUi() {
+    AscendSecurity.lock();
+    AscendSecurity.clearSecretsFromState(state);
+    AscendSecurity.clearOAuthToken();
+    state.connectors.gmailConnected = false;
+    render();
+    toast("Coffre verrouillé — clés & tokens effacés de la mémoire");
   }
 
   function toast(msg) {
@@ -98,19 +185,21 @@
     $$(".side-link").forEach((a) => a.classList.toggle("active", a.dataset.view === view));
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
     const titles = {
-      dashboard: ["Tableau de bord", "Priorise les offres qui accélèrent ta carrière."],
-      profile: ["Profil Vault", "CV + LinkedIn + imports Gemini / IA."],
+      cockpit: ["One-Click", "Un workflow. Un bouton. Le reste est dans l'Atelier."],
+      job: ["Fiche offre", "Intelligence unifiée : levier, ATS, package, readiness, lettre, entretien."],
+      dashboard: ["Vue rapide", "Offres et ajout manuel."],
+      profile: ["Profil Vault", "CV + réseau pro + imports IA."],
       accelerator: ["Accélérateur", "Multi-vecteurs d'upgrade — tous métiers."],
       passerelles: ["Passerelles & leviers", "Ponts de carrière + coups de chance + CV honnête."],
-      ats: ["ATS Match", "Style Jobscan — mots-clés CV ↔ offre."],
+      ats: ["ATS Match", "Mots-clés profil ↔ offre."],
       cv: ["CV Studio", "Versions orientées sans mentir, tous métiers."],
-      linkedin: ["LinkedIn Boost", "Headline, about, positionnement client final."],
-      pipeline: ["Pipeline", "Tracker type Teal — du saved à l'offre."],
-      apply: ["Apply Queue", "File FastApply — frais + fort levier d'abord."],
+      linkedin: ["LinkedIn Boost", "Headline, about, positionnement."],
+      pipeline: ["Pipeline", "Du saved à l'offre, avec score carrière."],
+      apply: ["Apply Queue", "File priorisée — frais + fort levier d'abord."],
       fresh: ["Radar frais", "Offres <1h / <24h — sois le premier à postuler."],
-      autofill: ["AutoFill CRM", "Remplit ATS / portails depuis LinkedIn + profil IA."],
-      emails: ["Email Finder RH/CP", "Nomenclatures + LinkedIn → mails en plus du CRM ATS."],
-      connectors: ["Connecteurs", "Gmail, LinkedIn, Gemini / Workspace."],
+      autofill: ["AutoFill CRM", "Remplit les portails ATS depuis ton profil."],
+      emails: ["Email Finder RH/CP", "Cartes, API optionnelle, permutator → mails."],
+      connectors: ["Connecteurs", "Session locale + magic links — zéro base AscendOS."],
     };
     const [t, s] = titles[view] || ["AscendOS", ""];
     $("#view-title").textContent = t;
@@ -129,6 +218,488 @@
         info: "chip-info",
       }[tone] || "chip-info"
     );
+  }
+
+  let selectedWorkflowId = "morning_sprint";
+  let workflowRunning = false;
+  let selectedJobId = null;
+
+  function renderCockpit() {
+    const pick = $("#wf-pick");
+    if (!pick) return;
+    pick.innerHTML = AscendWorkflows.WORKFLOWS.map(
+      (w) => `<button type="button" class="wf-card${w.id === selectedWorkflowId ? " active" : ""}" data-wf="${w.id}" role="option" aria-selected="${
+        w.id === selectedWorkflowId
+      }">
+        <strong>${escapeHtml(w.label)}</strong>
+        <span>${escapeHtml(w.blurb)}</span>
+      </button>`
+    ).join("");
+
+    const wf = AscendWorkflows.byId(selectedWorkflowId);
+    const btn = $("#btn-oneclick");
+    if (btn && wf) btn.textContent = wf.oneButton;
+
+    const ranked = FreshRadar.rankForFirstApply(state.jobs, state.profile, {
+      maxAgeMs: (state.settings.freshWindowHours || 24) * 3600 * 1000,
+    });
+    const prime = ranked.filter((j) => j.prime.fresh.tier.id === "prime" || j.prime.urgency === "apply_now");
+    if ($("#ck-jobs")) $("#ck-jobs").textContent = String(state.jobs.length);
+    if ($("#ck-prime")) $("#ck-prime").textContent = String(prime.length);
+    if ($("#ck-queue")) $("#ck-queue").textContent = String(state.applyQueue.length);
+    renderWeeklyStrip();
+  }
+
+  function renderWeeklyStrip() {
+    const el = $("#weekly-strip");
+    if (!el || typeof WeeklyPlan === "undefined") return;
+    const snap = WeeklyPlan.snapshot();
+    el.innerHTML = `<div class="weekly-head"><strong>Semaine ${escapeHtml(snap.week)}</strong>
+      <span class="chip ${snap.streak ? "chip-ok" : "chip-info"}">${snap.streak}j streak</span></div>
+      <div class="weekly-bars">${snap.bars
+        .map(
+          (b) => `<div class="weekly-bar" title="${escapeHtml(b.label)}">
+          <span>${escapeHtml(b.label)} ${b.used}/${b.max}</span>
+          <div class="meter-bar"><i style="width:${b.pct}%"></i></div>
+        </div>`
+        )
+        .join("")}</div>`;
+  }
+
+  function jobContext(job) {
+    if (!job) return null;
+    const career = CareerAccelerator.scoreJob(job, state.profile);
+    const fresh = FreshRadar.freshnessScore(job);
+    const prime = FreshRadar.primeApplyScore(job, state.profile);
+    const comp = CompSignal.enrichJob(job, state.profile);
+    const resume = profileResumeText();
+    const ats = AtsEngine.analyze(resume, `${job.title}\n${job.company}\n${job.description || ""}`);
+    job.atsScore = ats.score;
+    const hasCover = Boolean(job.coverLetter) || (state.letters || []).some((l) => l.jobId === job.id);
+    const hasContact = (state.contacts || []).some((c) => c.jobId === job.id);
+    const readiness = ApplyReadiness.score(job, state.profile, {
+      careerScore: career.score,
+      atsScore: ats.score,
+      fresh,
+      comp,
+      hasCover,
+      hasContact,
+      autofillReady: Boolean(job.autofillReady),
+    });
+    return { career, fresh, prime, comp, ats, readiness };
+  }
+
+  function openJob(jobId) {
+    selectedJobId = jobId;
+    const job = state.jobs.find((j) => j.id === jobId);
+    if (!job) {
+      toast("Offre introuvable");
+      return;
+    }
+    navigate("job");
+    renderJobIntel();
+  }
+
+  function ensureCoverForJob(job) {
+    const { bridges } = Passerelles.findBridges(state.profile);
+    const bridge = bridges[0] || null;
+    const ctx = jobContext(job);
+    const memory =
+      typeof ApplyMemory !== "undefined" ? ApplyMemory.lessonsRelevant(state, job) : [];
+    const letter = CoverLetter.generate({
+      profile: state.profile,
+      job,
+      bridge,
+      atsGaps: ctx?.ats?.gaps || [],
+      memory,
+    });
+    job.coverLetter = letter.body;
+    state.letters = state.letters || [];
+    state.letters.unshift(letter);
+    state.letters = state.letters.slice(0, 40);
+    WeeklyPlan.log("boost", { kind: "cover", jobId: job.id });
+    return letter;
+  }
+
+  function ensureCvForJob(job) {
+    const { bridges } = Passerelles.findBridges(state.profile);
+    const bridge = bridges[0] || null;
+    const ctx = jobContext(job);
+    const memory =
+      typeof ApplyMemory !== "undefined" ? ApplyMemory.lessonsRelevant(state, job) : [];
+    const cv = CvTailor.generate({
+      profile: state.profile,
+      job,
+      bridge,
+      atsGaps: ctx?.ats?.gaps || [],
+      memory,
+    });
+    job.tailoredCv = cv.body;
+    job.tailoredCvHtml = cv.html;
+    state.cvVersions = state.cvVersions || [];
+    state.cvVersions.unshift(cv);
+    state.cvVersions = state.cvVersions.slice(0, 40);
+    WeeklyPlan.log("boost", { kind: "cv", jobId: job.id });
+    return cv;
+  }
+
+  function ensureInterviewForJob(job) {
+    const pack = InterviewPrep.generate({
+      profile: state.profile,
+      job,
+      vectors: state.profile.activeVectors || [],
+    });
+    job.interviewPack = pack;
+    WeeklyPlan.log("prep", { jobId: job.id });
+    return pack;
+  }
+
+  function renderJobIntel() {
+    const root = $("#job-intel");
+    if (!root) return;
+    const job = state.jobs.find((j) => j.id === selectedJobId) || state.jobs[0];
+    if (!job) {
+      root.innerHTML = `<p style="color:var(--mist)">Aucune offre — ajoute-en une ou lance le Radar.</p>`;
+      return;
+    }
+    selectedJobId = job.id;
+    const ctx = jobContext(job);
+    const { career, fresh, prime, comp, ats, readiness } = ctx;
+    const coverPreview = (job.coverLetter || "").slice(0, 320);
+    const interview = job.interviewPack;
+
+    root.innerHTML = `
+      <div class="job-intel-head">
+        <div>
+          <p class="section-kicker">Fiche intelligente</p>
+          <h2>${escapeHtml(job.title)}</h2>
+          <p class="job-intel-meta">${escapeHtml(job.company)} · ${escapeHtml(job.location || "—")}</p>
+        </div>
+        <div class="job-intel-scores">
+          <span class="chip ${chipClass(career.tone)}">Levier ${career.score}</span>
+          <span class="chip ${chipClass(fresh.tier?.tone || "info")}">${escapeHtml(fresh.tier?.short || "Frais")} · ${escapeHtml(fresh.ageLabel)}</span>
+          <span class="chip chip-info">ATS ${ats.score}%</span>
+          <span class="chip ${chipClass(readiness.tone)}">Ready ${readiness.total}%</span>
+        </div>
+      </div>
+
+      <div class="job-intel-grid">
+        <div class="panel">
+          <h3>Package</h3>
+          <p class="big-num">${escapeHtml(CompSignal.formatRange(comp))}</p>
+          <p style="color:var(--mist)">${escapeHtml(comp.vs?.label || "—")}${comp.equity ? " · equity" : ""}${comp.bonus ? " · variable" : ""}</p>
+        </div>
+        <div class="panel">
+          <h3>Préparation</h3>
+          <p class="big-num">${readiness.total}%</p>
+          <p style="color:var(--mist)">${escapeHtml(readiness.verdict)}</p>
+          <div class="ready-list">${readiness.items
+            .map(
+              (it) => `<div class="ready-item ${it.ok ? "ok" : "ko"}"><span>${it.ok ? "●" : "○"}</span> ${escapeHtml(
+                it.label
+              )} <em>${escapeHtml(it.hint)}</em></div>`
+            )
+            .join("")}</div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:1rem">
+        <h3>Pourquoi cette offre</h3>
+        <ul class="list-gaps">${(career.reasons || []).map((r) => `<li>${escapeHtml(r)}</li>`).join("") || "<li>—</li>"}</ul>
+        ${
+          career.passerelle?.bridge
+            ? `<div class="playbook-note">Passerelle : ${escapeHtml(career.passerelle.bridge.title)}</div>`
+            : ""
+        }
+      </div>
+
+      <div class="grid-2" style="margin-top:1rem">
+        <div class="panel">
+          <h3>Lettre / pitch</h3>
+          <pre class="soft-pre">${escapeHtml(coverPreview || "Pas encore générée.")}${coverPreview.length >= 320 ? "…" : ""}</pre>
+          <div class="row-actions">
+            <button class="btn btn-soft" type="button" id="btn-job-cover">Générer lettre</button>
+            <button class="btn btn-soft" type="button" id="btn-job-cv">Générer CV offre</button>
+            <button class="btn btn-ghost" type="button" id="btn-job-copy-cover">Copier lettre</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Prépa entretien</h3>
+          ${
+            interview
+              ? `<ul class="list-gaps">${interview.questions
+                  .slice(0, 5)
+                  .map((q) => `<li>${escapeHtml(q)}</li>`)
+                  .join("")}</ul>
+                 <p style="color:var(--mist);font-size:0.85rem;margin-top:0.5rem">${escapeHtml(interview.closer)}</p>`
+              : `<p style="color:var(--mist)">Génère un pack questions + STAR.</p>`
+          }
+          <div class="row-actions">
+            <button class="btn btn-soft" type="button" id="btn-job-interview">Générer prépa</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row-actions" style="margin-top:1rem">
+        <button class="btn btn-primary" type="button" id="btn-job-queue">File Apply</button>
+        <button class="btn btn-soft" type="button" id="btn-job-autofill">AutoFill</button>
+        <button class="btn btn-ghost" type="button" id="btn-job-ats">Match ATS</button>
+        ${job.url ? `<a class="btn btn-ghost" href="${escapeHtml(job.url)}" target="_blank" rel="noopener">Ouvrir l’annonce</a>` : ""}
+      </div>`;
+
+    $("#btn-job-cover")?.addEventListener("click", () => {
+      ensureCoverForJob(job);
+      persist();
+      renderJobIntel();
+      toast("Lettre générée (honnête, locale)");
+    });
+    $("#btn-job-cv")?.addEventListener("click", () => {
+      const cv = ensureCvForJob(job);
+      if ($("#cv-preview")) $("#cv-preview").value = cv.body;
+      if ($("#cv-job")) $("#cv-job").value = job.id;
+      persist();
+      renderJobIntel();
+      toast("CV offre généré — éditable dans CV Studio");
+    });
+    $("#btn-job-copy-cover")?.addEventListener("click", async () => {
+      if (!job.coverLetter) ensureCoverForJob(job);
+      await navigator.clipboard.writeText(job.coverLetter || "");
+      persist();
+      toast("Lettre copiée");
+    });
+    $("#btn-job-interview")?.addEventListener("click", () => {
+      ensureInterviewForJob(job);
+      persist();
+      renderJobIntel();
+      toast("Prépa entretien prête");
+    });
+    $("#btn-job-queue")?.addEventListener("click", () => {
+      queueJob(job.id);
+      WeeklyPlan.log("apply", { jobId: job.id });
+      toast("Ajouté à la file");
+    });
+    $("#btn-job-autofill")?.addEventListener("click", () => {
+      if ($("#af-job")) $("#af-job").value = job.id;
+      buildAutofillPack(job.id);
+      job.autofillReady = true;
+      persist();
+      navigate("autofill");
+    });
+    $("#btn-job-ats")?.addEventListener("click", () => {
+      if ($("#ats-job")) $("#ats-job").value = `${job.title}\n${job.company}\n${job.description || ""}`;
+      if ($("#ats-resume")) $("#ats-resume").value = profileResumeText();
+      runAts();
+      navigate("ats");
+    });
+  }
+
+  function wfLog(msg) {
+    const el = $("#wf-log");
+    if (!el) return;
+    el.textContent = (el.textContent ? el.textContent + "\n" : "") + msg;
+  }
+
+  function wfSetSteps(stepIds, activeIdx) {
+    const labels = {
+      vectors: "Activer vecteurs intelligents",
+      fresh: "Agréger offres fraîches",
+      fresh_rank: "Classer par fraîcheur × levier",
+      queue_prime: "Remplir Apply Queue (PRIME)",
+      autofill_top: "Générer pack AutoFill",
+      cover_top: "Lettre / pitch honnête",
+      interview_top: "Pack entretien STAR",
+      readiness_top: "Score de préparation",
+      batch_prepare: "Batch Apply (packs + onglets)",
+      best_job: "Choisir meilleure offre",
+      cv_orient: "Orienter le CV (honnête)",
+      email_hint: "Préparer Email Finder",
+      passerelles: "Calculer passerelles",
+      linkedin: "Préparer LinkedIn Boost",
+      summary: "Résumé & prochaines actions",
+    };
+    const ol = $("#wf-steps");
+    if (!ol) return;
+    ol.innerHTML = stepIds
+      .map((id, i) => {
+        const cls = i < activeIdx ? "done" : i === activeIdx ? "run" : "";
+        return `<li class="${cls}"><span class="dot"></span>${escapeHtml(labels[id] || id)}</li>`;
+      })
+      .join("");
+    const fill = $("#wf-bar-fill");
+    if (fill) fill.style.width = `${Math.round((activeIdx / Math.max(1, stepIds.length)) * 100)}%`;
+  }
+
+  async function runOneClickWorkflow() {
+    if (workflowRunning) return;
+    const wf = AscendWorkflows.byId(selectedWorkflowId);
+    if (!wf) return;
+    workflowRunning = true;
+    const btn = $("#btn-oneclick");
+    if (btn) btn.disabled = true;
+    const prog = $("#wf-progress");
+    if (prog) prog.hidden = false;
+    if ($("#wf-log")) $("#wf-log").textContent = "";
+    if ($("#wf-next-actions")) $("#wf-next-actions").innerHTML = "";
+    const steps = wf.steps;
+    let ctx = { topJob: null, queued: 0, pack: null };
+
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        wfSetSteps(steps, i);
+        const step = steps[i];
+
+        if (step === "vectors") {
+          const smart = Passerelles.suggestVectorsFromProfile(state.profile);
+          state.profile.activeVectors = smart.vectorIds.length
+            ? smart.vectorIds
+            : CareerVectors.recommendVectors(state.profile);
+          persist();
+          wfLog(`Vecteurs: ${state.profile.activeVectors.length} actifs`);
+        }
+
+        if (step === "fresh" || step === "fresh_rank") {
+          if (step === "fresh") {
+            wfLog("Agrégation des sources (ou cache si throttle)…");
+            try {
+              await fetchFreshJobs();
+            } catch (e) {
+              wfLog(`Fresh: ${e.message || "partiel"} — on continue avec les offres locales`);
+            }
+          }
+          const ranked = FreshRadar.rankForFirstApply(state.jobs, state.profile, {
+            maxAgeMs: (state.settings.freshWindowHours || 24) * 3600 * 1000,
+          });
+          ctx.topJob = ranked[0] || null;
+          wfLog(`Classement: ${ranked.length} dans la fenêtre · top: ${ctx.topJob?.title || "—"}`);
+        }
+
+        if (step === "best_job") {
+          const ranked = CareerAccelerator.rankJobs(state.jobs, state.profile);
+          ctx.topJob = ranked[0] || null;
+          wfLog(`Meilleure offre levier: ${ctx.topJob?.title || "aucune"}`);
+        }
+
+        if (step === "queue_prime") {
+          const before = state.applyQueue.length;
+          queueAllPrime();
+          ctx.queued = Math.max(0, state.applyQueue.length - before);
+          if (!ctx.topJob) {
+            const ranked = FreshRadar.rankForFirstApply(state.jobs, state.profile, {
+              maxAgeMs: (state.settings.freshWindowHours || 24) * 3600 * 1000,
+            });
+            ctx.topJob = ranked[0] || state.jobs[0] || null;
+          }
+          wfLog(`File: +${ctx.queued} (total ${state.applyQueue.length})`);
+        }
+
+        if (step === "cv_orient") {
+          const { bridges } = Passerelles.findBridges(state.profile);
+          const oriented = Passerelles.orientCv(state.profile, bridges[0]);
+          state.cvVersions.unshift({
+            id: AscendStore.uid("cv"),
+            name: `CV one-click · ${bridges[0]?.title || "cap"}`,
+            target: bridges[0]?.title || "upgrade",
+            body: `${oriented.orientedHeadline}\n\n${oriented.orientedSummary}`,
+            at: Date.now(),
+            honest: true,
+          });
+          persist();
+          wfLog("CV orienté sauvé (sans mensonge)");
+        }
+
+        if (step === "autofill_top") {
+          const jobId = ctx.topJob?.id || state.applyQueue[0]?.jobId;
+          if (jobId) {
+            if ($("#af-job")) $("#af-job").value = jobId;
+            ctx.pack = buildAutofillPack(jobId);
+            const j = state.jobs.find((x) => x.id === jobId);
+            if (j) j.autofillReady = true;
+            persist();
+            wfLog(`AutoFill prêt pour ${ctx.topJob?.title || jobId}`);
+          } else wfLog("AutoFill: pas d'offre — saute");
+        }
+
+        if (step === "cover_top") {
+          const job = ctx.topJob || state.jobs.find((j) => j.id === state.applyQueue[0]?.jobId);
+          if (job) {
+            ensureCoverForJob(job);
+            persist();
+            wfLog("Lettre générée");
+          } else wfLog("Lettre: pas d'offre");
+        }
+
+        if (step === "interview_top") {
+          const job = ctx.topJob || state.jobs.find((j) => j.id === state.applyQueue[0]?.jobId);
+          if (job) {
+            ensureInterviewForJob(job);
+            selectedJobId = job.id;
+            persist();
+            wfLog("Prépa entretien générée");
+          } else wfLog("Entretien: pas d'offre");
+        }
+
+        if (step === "readiness_top") {
+          const job = ctx.topJob || state.jobs.find((j) => j.id === state.applyQueue[0]?.jobId);
+          if (job) {
+            const r = jobContext(job).readiness;
+            job.readiness = r.total;
+            persist();
+            wfLog(`Readiness ${r.total}% — ${r.verdict}`);
+          } else wfLog("Readiness: pas d'offre");
+        }
+
+        if (step === "batch_prepare") {
+          await runBatchOrLoop({ loop: false });
+          wfLog("Batch file exécuté");
+        }
+
+        if (step === "email_hint") {
+          if (ctx.topJob?.company) {
+            const guess = EmailFinder.guessDomainFromCompany(ctx.topJob.company);
+            if ($("#ef-domain")) $("#ef-domain").value = guess;
+            if ($("#ef-job")) $("#ef-job").value = ctx.topJob.id;
+            wfLog(`Email Finder préparé · domaine suggéré ${guess}`);
+          } else wfLog("Email Finder: ajoute un contact RH manuellement");
+        }
+
+        if (step === "passerelles") {
+          const { families, bridges } = Passerelles.findBridges(state.profile);
+          wfLog(`Familles: ${families.map((f) => f.label).join(", ") || "—"}`);
+          wfLog(`Top passerelle: ${bridges[0]?.title || "—"}`);
+        }
+
+        if (step === "linkedin") {
+          renderLinkedIn();
+          wfLog("LinkedIn Boost régénéré — Atelier → LinkedIn pour copier");
+        }
+
+        if (step === "summary") {
+          wfSetSteps(steps, steps.length);
+          const fill = $("#wf-bar-fill");
+          if (fill) fill.style.width = "100%";
+          wfLog("Terminé.");
+          const actions = $("#wf-next-actions");
+          if (actions) {
+            actions.innerHTML = `
+              <button class="btn btn-primary" type="button" data-go="job">Ouvrir fiche offre</button>
+              <button class="btn btn-soft" type="button" data-go="apply">Apply Queue</button>
+              <button class="btn btn-ghost" type="button" data-go="autofill">AutoFill</button>
+              <button class="btn btn-ghost" type="button" data-go="emails">Email Finder</button>`;
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 180));
+      }
+      renderCockpit();
+      toast("Workflow terminé");
+    } catch (e) {
+      wfLog(`Erreur: ${e.message || e}`);
+      toast("Workflow interrompu");
+    } finally {
+      workflowRunning = false;
+      if (btn) btn.disabled = false;
+      renderCockpit();
+    }
   }
 
   function renderDashboard() {
@@ -156,6 +727,13 @@
           <span class="chip ${chipClass(fresh.tier.tone)}" style="margin-left:0.35rem">${escapeHtml(
             fresh.tier.short
           )} · ${escapeHtml(fresh.ageLabel)}</span>
+          ${
+            a?.workFit
+              ? `<span class="chip ${chipClass(a.workFit.tone)}" style="margin-left:0.35rem">${escapeHtml(
+                  a.workFit.arrangement?.label || a.workFit.label
+                )}</span>`
+              : ""
+          }
         </article>`;
       })
       .join("");
@@ -168,16 +746,69 @@
     $("#pf-email").value = p.email || "";
     if ($("#pf-phone")) $("#pf-phone").value = p.phone || "";
     $("#pf-location").value = p.location || "";
+    renderWorkModes();
+    const wp = typeof WorkPrefs !== "undefined" ? WorkPrefs.ensure(p) : p.workPrefs || {};
+    if ($("#pf-work-zones")) $("#pf-work-zones").value = (wp.preferredLocations || []).join(", ");
+    if ($("#pf-work-exclude")) $("#pf-work-exclude").value = (wp.excludeLocations || []).join(", ");
+    if ($("#pf-work-notes")) $("#pf-work-notes").value = wp.notes || "";
     if ($("#pf-website")) $("#pf-website").value = p.website || "";
     if ($("#pf-salary")) $("#pf-salary").value = p.salaryExpectation || "";
     $("#pf-summary").value = p.summary || "";
     $("#pf-skills").value = (p.skills || []).join(", ");
+    if ($("#pf-education")) $("#pf-education").value = (p.education || []).join("\n");
     $("#pf-goal").value = p.careerGoal || "";
     $("#pf-linkedin").value = p.linkedinUrl || "";
     $("#pf-current").value = p.currentTrack || "esn";
     $("#pf-target").value = p.targetTrack || "end_client";
     $("#pf-years").value = p.yearsExp ?? 3;
     renderVectorPicker();
+  }
+
+  function renderWorkModes() {
+    const root = $("#pf-work-modes");
+    if (!root || typeof WorkPrefs === "undefined") return;
+    const accepted = new Set(WorkPrefs.ensure(state.profile).modes || []);
+    root.innerHTML = WorkPrefs.MODES.map((m) => {
+      const checked = accepted.has(m.id) ? "checked" : "";
+      return `<div class="vector-item">
+        <input type="checkbox" id="wm-${m.id}" data-work-mode="${m.id}" ${checked} />
+        <label for="wm-${m.id}">${escapeHtml(m.label)}
+          <small>${escapeHtml(m.blurb)}</small>
+        </label>
+      </div>`;
+    }).join("");
+  }
+
+  function readWorkPrefsFromForm() {
+    const modes = $$("#pf-work-modes input[data-work-mode]:checked").map((el) => el.dataset.workMode);
+    const preferredLocations = ($("#pf-work-zones")?.value || "")
+      .split(/,/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const excludeLocations = ($("#pf-work-exclude")?.value || "")
+      .split(/,/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return {
+      modes,
+      preferredLocations,
+      excludeLocations,
+      notes: ($("#pf-work-notes")?.value || "").trim(),
+      configured: true,
+    };
+  }
+
+  async function askWorkPrefsInteractive() {
+    if (typeof WorkPrefs === "undefined") return;
+    const patch = await WorkPrefs.interactiveConfigure(state.profile);
+    if (!patch) {
+      toast("Configuration lieu/mode annulée");
+      return;
+    }
+    state.profile = WorkPrefs.applyPatch(state.profile, patch);
+    persist();
+    renderProfile();
+    toast("Préférences lieu / remote enregistrées");
   }
 
   function renderVectorPicker() {
@@ -213,6 +844,9 @@
     state.profile.email = $("#pf-email").value.trim();
     if ($("#pf-phone")) state.profile.phone = $("#pf-phone").value.trim();
     state.profile.location = $("#pf-location").value.trim();
+    if (typeof WorkPrefs !== "undefined") {
+      state.profile.workPrefs = readWorkPrefsFromForm();
+    }
     if ($("#pf-website")) state.profile.website = $("#pf-website").value.trim();
     if ($("#pf-salary")) state.profile.salaryExpectation = $("#pf-salary").value.trim();
     state.profile.summary = $("#pf-summary").value.trim();
@@ -220,6 +854,12 @@
       .split(/,/)
       .map((s) => s.trim())
       .filter(Boolean);
+    if ($("#pf-education")) {
+      state.profile.education = $("#pf-education").value
+        .split(/\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
     state.profile.careerGoal = $("#pf-goal").value.trim();
     state.profile.linkedinUrl = $("#pf-linkedin").value.trim();
     state.profile.currentTrack = $("#pf-current").value;
@@ -394,6 +1034,7 @@
               : ""
           }
           <div class="row-actions">
+            <button class="btn btn-primary" data-act="open" data-id="${j.id}">Fiche intelligente</button>
             <button class="btn btn-soft" data-act="queue" data-id="${j.id}">Ajouter à Apply Queue</button>
             <button class="btn btn-ghost" data-act="status" data-id="${j.id}" data-status="applied">Marquer Applied</button>
           </div>
@@ -417,18 +1058,232 @@
     toast(`ATS score ${result.score}%`);
   }
 
+  function fillDocJobSelects() {
+    const opts =
+      `<option value="">— profil seul —</option>` +
+      state.jobs
+        .map((j) => `<option value="${j.id}">${escapeHtml(j.title)} · ${escapeHtml(j.company)}</option>`)
+        .join("");
+    for (const id of ["cv-job", "letter-job", "mem-job"]) {
+      const el = $(`#${id}`);
+      if (!el) continue;
+      const prev = el.value;
+      el.innerHTML = opts;
+      if (prev) el.value = prev;
+    }
+  }
+
   function renderCvStudio() {
+    fillDocJobSelects();
     const versions = state.cvVersions || [];
     $("#cv-list").innerHTML =
       versions
         .map(
           (v) => `<article class="job-card">
         <h4>${escapeHtml(v.name)}</h4>
-        <div class="meta">${new Date(v.at).toLocaleString()} · cible: ${escapeHtml(v.target || "")}</div>
-        <p style="color:var(--mist);font-size:0.9rem;white-space:pre-wrap">${escapeHtml(v.body.slice(0, 280))}…</p>
+        <div class="meta">${new Date(v.at).toLocaleString()} · ${escapeHtml(v.target || "")}</div>
+        <p style="color:var(--mist);font-size:0.9rem;white-space:pre-wrap">${escapeHtml((v.body || "").slice(0, 280))}…</p>
+        <button class="btn btn-ghost btn-tiny" type="button" data-load-cv="${v.id}">Réouvrir</button>
       </article>`
         )
-        .join("") || `<p style="color:var(--mist)">Aucune version encore. Génère un boost depuis un scan ATS ou le profil.</p>`;
+        .join("") || `<p style="color:var(--mist)">Aucune version. Génère un CV par offre.</p>`;
+
+    $$("#cv-list [data-load-cv]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const v = state.cvVersions.find((x) => x.id === btn.dataset.loadCv);
+        if (!v) return;
+        if ($("#cv-preview")) $("#cv-preview").value = v.body;
+        state._lastCvHtml = v.html || null;
+        toast("Version rechargée");
+      });
+    });
+
+    renderApplyMemory();
+  }
+
+  function renderApplyMemory() {
+    const root = $("#mem-list");
+    if (!root) return;
+    const list = state.applyMemory || [];
+    root.innerHTML =
+      list
+        .slice(0, 12)
+        .map(
+          (m) => `<div class="job-card" style="margin-bottom:0.4rem">
+          <div class="meta">${escapeHtml(m.outcome)} · ${escapeHtml(m.company || m.role || "—")} · ${new Date(m.at).toLocaleDateString()}</div>
+          <div style="font-size:0.88rem">${escapeHtml(m.lesson || m.note || "")}</div>
+        </div>`
+        )
+        .join("") || `<p style="color:var(--mist);font-size:0.85rem">Aucun retour encore.</p>`;
+  }
+
+  function tailorCvFromUi() {
+    const jobId = $("#cv-job")?.value;
+    let job = state.jobs.find((j) => j.id === jobId);
+    if (!job && $("#cv-target")?.value.trim()) {
+      job = {
+        id: null,
+        title: $("#cv-target").value.trim(),
+        company: "",
+        description: $("#cv-target").value.trim(),
+        location: state.profile.location || "",
+      };
+    }
+    if (!job) {
+      toast("Choisis une offre ou une cible");
+      return;
+    }
+    const cv = job.id ? ensureCvForJob(job) : CvTailor.generate({
+      profile: state.profile,
+      job,
+      bridge: Passerelles.findBridges(state.profile).bridges[0] || null,
+      memory: ApplyMemory.lessonsRelevant(state, job),
+    });
+    if (!job.id) {
+      state.cvVersions.unshift(cv);
+      state.cvVersions = state.cvVersions.slice(0, 40);
+    }
+    $("#cv-preview").value = cv.body;
+    state._lastCvHtml = cv.html;
+    if ($("#cv-honesty")) {
+      $("#cv-honesty").innerHTML = (cv.honesty || []).map((h) => `<li>${escapeHtml(h)}</li>`).join("");
+    }
+    persist();
+    renderCvStudio();
+    toast("CV généré — corrige si besoin puis PDF");
+  }
+
+  function reviseCvNl() {
+    const text = $("#cv-preview")?.value || "";
+    const instruction = $("#cv-nl")?.value || "";
+    const out = DocRevise.applyInstruction(text, instruction, state.profile);
+    $("#cv-preview").value = out.text;
+    if ($("#cv-issues")) {
+      $("#cv-issues").innerHTML = [
+        ...out.notes.map((n) => `<li>${escapeHtml(n)}</li>`),
+        ...out.issues.map((i) => `<li class="chip-${i.level}">${escapeHtml(i.msg)}</li>`),
+      ].join("");
+    }
+    state._lastCvHtml = null;
+    toast("Correction appliquée");
+  }
+
+  function scanCvIssues() {
+    const issues = DocRevise.detectInconsistencies($("#cv-preview")?.value || "", state.profile);
+    if ($("#cv-issues")) {
+      $("#cv-issues").innerHTML = issues.length
+        ? issues.map((i) => `<li>${escapeHtml(i.msg)}</li>`).join("")
+        : `<li>Aucune incohérence évidente.</li>`;
+    }
+  }
+
+  function printCvPdf() {
+    const body = $("#cv-preview")?.value || "";
+    if (!body.trim()) {
+      toast("Génère ou colle un CV d’abord");
+      return;
+    }
+    const html =
+      state._lastCvHtml ||
+      CvTailor.toPrintHtml({
+        facts: CvTailor.factsFromProfile(state.profile),
+        headline: state.profile.headline || "",
+        summary: body.slice(0, 800),
+        skillLine: (state.profile.skills || []).join(" · "),
+        expBlock: body,
+        edu: (state.profile.education || []).join("\n"),
+        company: "",
+        target: $("#cv-target")?.value || "",
+        work: typeof WorkPrefs !== "undefined" ? WorkPrefs.summaryText(state.profile) : "",
+      });
+    // Prefer live edited body in a simple print wrapper
+    const live = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"/><title>CV</title>
+      <style>@page{margin:16mm}body{font-family:Georgia,serif;white-space:pre-wrap;line-height:1.35;max-width:720px;margin:0 auto;padding:20px;font-size:11pt}</style>
+      </head><body>${escapeHtml(body).replace(/\n/g, "<br/>")}</body></html>`;
+    CvTailor.openPrint(live || html);
+  }
+
+  function generateLetterFromUi() {
+    const job = state.jobs.find((j) => j.id === $("#letter-job")?.value);
+    if (!job) {
+      toast("Choisis une offre pour la lettre");
+      return;
+    }
+    const letter = ensureCoverForJob(job);
+    if ($("#letter-preview")) $("#letter-preview").value = letter.body;
+    persist();
+    toast("Lettre générée");
+  }
+
+  function reviseLetterNl() {
+    const out = DocRevise.applyInstruction(
+      $("#letter-preview")?.value || "",
+      $("#letter-nl")?.value || "",
+      state.profile
+    );
+    $("#letter-preview").value = out.text;
+    toast(out.notes[0] || "OK");
+  }
+
+  function addApplyMemoryFromUi() {
+    const job = state.jobs.find((j) => j.id === $("#mem-job")?.value);
+    ApplyMemory.add(state, {
+      jobId: job?.id || null,
+      company: job?.company || "",
+      role: job?.title || "",
+      outcome: $("#mem-outcome")?.value || "note",
+      lesson: $("#mem-lesson")?.value || "",
+      emailSnippet: $("#mem-email")?.value || "",
+      note: $("#mem-lesson")?.value || "",
+    });
+    if ($("#mem-lesson")) $("#mem-lesson").value = "";
+    if ($("#mem-email")) $("#mem-email").value = "";
+    persist();
+    renderApplyMemory();
+    toast("Retour enregistré (local)");
+  }
+
+  function refreshAuthStatus() {
+    const el = $("#auth-status");
+    if (!el || typeof AscendAuth === "undefined") return;
+    const st = AscendAuth.status();
+    el.textContent = st.requireAuth
+      ? `Login ON · ${st.hasPassword ? "mdp" : "oauth"} · ${st.hasJwt ? "JWT actif" : "verrouillé"}${st.sealed ? " · données scellées" : ""}`
+      : "Login OFF (données appareil en clair local)";
+  }
+
+  async function showAuthGateIfNeeded() {
+    if (typeof AscendAuth === "undefined" || !AscendAuth.isEnabled()) {
+      $("#auth-gate")?.setAttribute("hidden", "");
+      return false;
+    }
+    const valid = await AscendAuth.sessionValid();
+    if (valid.ok) {
+      $("#auth-gate")?.setAttribute("hidden", "");
+      return false;
+    }
+    $("#auth-gate")?.removeAttribute("hidden");
+    return true;
+  }
+
+  async function gateLoginPassword() {
+    const pass = $("#gate-pass")?.value || "";
+    const err = $("#gate-err");
+    try {
+      await AscendAuth.loginPassword(pass);
+      state = AscendStore.load();
+      ensureSeed();
+      $("#auth-gate")?.setAttribute("hidden", "");
+      if (err) err.hidden = true;
+      render();
+      refreshAuthStatus();
+      toast("Session déverrouillée · JWT local");
+    } catch (e) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = e.message || "Échec";
+      }
+    }
   }
 
   function boostCv() {
@@ -520,6 +1375,7 @@
                 <h4>${escapeHtml(j.title)}</h4>
                 <div class="meta">${escapeHtml(j.company)}</div>
                 <span class="chip ${chipClass(a.tone)}">${a.score}</span>
+                <button class="btn btn-ghost btn-tiny" type="button" data-act="open" data-id="${j.id}">Fiche</button>
               </div>`;
             })
             .join("")}
@@ -540,9 +1396,17 @@
         const job = state.jobs.find((j) => j.id === id);
         if (!job) return;
         job.status = col.dataset.status;
+        if (col.dataset.status === "interview") ensureInterviewForJob(job);
+        if (col.dataset.status === "applied") WeeklyPlan.log("apply", { jobId: job.id });
         persist();
         renderPipeline();
         toast(`Déplacé → ${col.dataset.status}`);
+      });
+    });
+    root.querySelectorAll("button[data-act=open]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openJob(btn.dataset.id);
       });
     });
   }
@@ -584,18 +1448,25 @@
           <span class="chip ${chipClass(prime.fresh.tier.tone)}" style="margin-left:0.35rem">${escapeHtml(
             prime.fresh.tier.short
           )} · ${escapeHtml(prime.fresh.ageLabel)}</span>
+          ${(() => {
+            const r = jobContext(job).readiness;
+            return `<span class="chip ${chipClass(r.tone)}" style="margin-left:0.35rem">Ready ${r.total}%</span>`;
+          })()}
           ${
             prime.urgency === "apply_now"
               ? `<span class="chip chip-ok" style="margin-left:0.35rem">APPLY NOW</span>`
               : ""
           }
+          <div class="row-actions" style="margin-top:0.55rem">
+            <button class="btn btn-soft" type="button" data-act="open-job" data-id="${job.id}">Fiche intelligente</button>
+          </div>
           <div class="field" style="margin-top:0.75rem">
             <label>Réponse formulaires ATS / CRM (éditable)</label>
             <textarea data-qid="${item.id}" class="apply-answer">${escapeHtml(item.answer || "")}</textarea>
           </div>
           ${contactBlock}
           <div class="row-actions">
-            <button class="btn btn-primary" data-act="mailto" data-qid="${item.id}">Outreach générique</button>
+            <button class="btn btn-primary" data-act="mailto" data-qid="${item.id}">Envoyer via Gmail</button>
             <button class="btn btn-soft" data-act="autofill" data-qid="${item.id}">Pack AutoFill CRM</button>
             <button class="btn btn-ghost" data-act="done" data-qid="${item.id}">Marquer envoyé</button>
             <button class="btn btn-danger" data-act="drop" data-qid="${item.id}">Retirer</button>
@@ -666,7 +1537,119 @@
       }
     } else {
       $("#af-preview").textContent =
-        "Clique « Générer pack AutoFill » — données LinkedIn + AI Vault fusionnées.";
+        "Clique « Générer pack AutoFill » — profil + vault IA fusionnés.";
+    }
+
+    const gaps = PublicEnrich.missingForAutofill(state.profile);
+    if ($("#af-gaps")) {
+      $("#af-gaps").innerHTML = gaps.length
+        ? `<span class="chip chip-warn">${gaps.length} gap(s)</span> ` +
+          gaps.map((g) => `<span class="chip chip-info">${escapeHtml(g.label)}</span>`).join(" ")
+        : `<span class="chip chip-ok">Profil prêt pour AutoFill</span>`;
+    }
+    if ($("#enrich-links")) {
+      $("#enrich-links").innerHTML = PublicEnrich.publicSourceLinks(state.profile)
+        .map(
+          (s) =>
+            `<a class="chip chip-lime" href="${escapeHtml(s.href)}" target="_blank" rel="noopener" title="${escapeHtml(
+              s.blurb
+            )}">${escapeHtml(s.label)}</a>`
+        )
+        .join("");
+    }
+  }
+
+  async function askProfileGapsInteractive(fields) {
+    const list = fields || PublicEnrich.missingForAutofill(state.profile);
+    if (
+      typeof WorkPrefs !== "undefined" &&
+      !WorkPrefs.ensure(state.profile).configured
+    ) {
+      await askWorkPrefsInteractive();
+    }
+    if (!list.length) {
+      toast("Aucun gap critique");
+      return {};
+    }
+    const patch = await PublicEnrich.interactiveFill(state.profile, {
+      fields: list,
+      askFn: async (question, prev) => window.prompt(question, prev || "") || "",
+    });
+    if (Object.keys(patch).length) {
+      state.profile = PublicEnrich.applyPatch(state.profile, patch);
+      persist();
+      renderProfile();
+      renderAutofill();
+      toast(`${Object.keys(patch).length} champ(s) complété(s)`);
+    }
+    return patch;
+  }
+
+  async function runBatchOrLoop({ loop = false } = {}) {
+    if (
+      typeof WorkPrefs !== "undefined" &&
+      !WorkPrefs.ensure(state.profile).configured
+    ) {
+      await askWorkPrefsInteractive();
+    }
+    const log = $("#batch-log");
+    if (log) log.textContent = "";
+    const append = (m) => {
+      if (log) log.textContent += (log.textContent ? "\n" : "") + m;
+    };
+    const helpers = {
+      persist,
+      ensureCover: (job) => ensureCoverForJob(job),
+      ensureInterview: (job) => ensureInterviewForJob(job),
+      readiness: (job) => jobContext(job).readiness,
+      buildPack: (id) => buildAutofillPack(id),
+      ensureCv: (job) => ensureCvForJob(job),
+      refreshFresh: fetchFreshJobs,
+    };
+    const onNeedProfile = async (miss) => askProfileGapsInteractive(miss);
+    const onStep = (s) => append(s.message || s.phase);
+    try {
+      if (loop) {
+        const out = await BatchApply.runLoop({
+          state,
+          helpers,
+          onStep,
+          onNeedProfile,
+          opts: {
+            mode: "queue",
+            limit: 6,
+            rounds: 2,
+            pauseMs: 2000,
+            pauseBetweenRoundsMs: 1500,
+            requireReady: 50,
+            openTabs: true,
+            interview: false,
+          },
+        });
+        WeeklyPlan.log("apply", { kind: "loop", rounds: out.rounds?.length });
+        toast(`Loop Apply terminé · ${out.rounds?.length || 0} tour(s)`);
+      } else {
+        const jobs = BatchApply.pickJobs(state, { mode: "queue", limit: 10 });
+        if (!jobs.length) {
+          toast("File vide — ajoute des offres d’abord");
+          return;
+        }
+        const out = await BatchApply.runBatch({
+          state,
+          jobs,
+          helpers,
+          onStep,
+          onNeedProfile,
+          opts: { pauseMs: 2200, requireReady: 50, openTabs: true },
+        });
+        WeeklyPlan.log("apply", { kind: "batch", n: out.count });
+        toast(`Batch · ${out.report.filter((r) => r.status === "prepared").length} pack(s) prêts`);
+      }
+      persist();
+      render();
+    } catch (e) {
+      append(`Erreur: ${e.message || e}`);
+      toast(e.message || "Batch interrompu");
     }
   }
 
@@ -847,66 +1830,74 @@
     toast(r.ok ? "MX OK" : "MX manquant / douteux");
   }
 
-  async function hunterEnrich() {
-    const key = state.connectors.hunterApiKey || $("#hunter-api-key")?.value.trim();
+  async function optionalApiEnrich() {
     const domain = EmailFinder.normalizeDomain($("#ef-domain")?.value || "");
     const fullName = $("#ef-fullname")?.value.trim() || "";
-    if (!key) {
-      toast("Ajoute une clé Hunter.io dans Connecteurs (free 50/mois)");
-      navigate("connectors");
-      return;
-    }
     if (!domain || !fullName) {
       toast("Domaine + nom requis");
       return;
     }
-    try {
-      // Learn pattern from domain-search first (1 credit-ish)
-      try {
-        const pat = await EmailFinder.hunterDomainPattern({ apiKey: key, domain });
-        if (pat.patternId) {
-          state.emailPatterns = state.emailPatterns || {};
-          state.emailPatterns[domain] = {
-            domain,
-            samples: (pat.emails || []).map((e) => ({ email: e.email, name: e.name, at: Date.now() })),
-            patternVotes: { [pat.patternId]: 2 },
-            topPattern: pat.patternId,
-            topLabel: EmailFinder.PATTERNS.find((p) => p.id === pat.patternId)?.label || pat.pattern,
-            confidence: 0.9,
-          };
-          persist();
-        }
-      } catch {
-        /* domain-search optional */
-      }
+    // Sync form keys into connectors for this call (no save required)
+    const connectors = {
+      ...state.connectors,
+      hunterApiKey: state.connectors.hunterApiKey || $("#hunter-api-key")?.value.trim() || "",
+      underIaApiKey: state.connectors.underIaApiKey || $("#under-ia-key")?.value.trim() || "",
+      underIaApiBase: state.connectors.underIaApiBase || $("#under-ia-base")?.value.trim() || "",
+    };
+    const out = await LocalStack.resolveEmails({
+      domain,
+      fullName,
+      connectors,
+      learned: state.emailPatterns,
+      preferApis: true,
+    });
+    if (out.patternPatch) {
+      state.emailPatterns = state.emailPatterns || {};
+      state.emailPatterns[out.patternPatch.domain] = out.patternPatch;
+      persist();
+    }
+    lastEmailCandidates = out.candidates;
+    renderEmailFinder();
+    const hint = (out.notes || []).slice(0, 2).join(" · ");
+    toast(
+      out.enriched
+        ? `Enrichi (${out.path}): ${out.enriched.email}`
+        : `Local · ${out.candidates.length} candidats${hint ? " — " + hint : ""}`
+    );
+  }
 
-      const found = await EmailFinder.hunterFind({ apiKey: key, domain, fullName });
-      const permutes = EmailFinder.generateCandidates({
-        fullName,
-        domain,
-        learned: state.emailPatterns,
-      });
-      if (found.found) {
-        lastEmailCandidates = [
-          {
-            email: found.email,
-            patternId: "hunter",
-            patternLabel: "Hunter verified-ish",
-            confidence: found.score || 90,
-            rank: 1,
-            preferred: true,
-            method: "hunter",
-          },
-          ...permutes.filter((p) => p.email !== found.email),
-        ];
-        toast(`Hunter: ${found.email}`);
-      } else {
-        lastEmailCandidates = permutes;
-        toast("Hunter sans match — permutator local");
-      }
-      renderEmailFinder();
-    } catch (e) {
-      toast(`Hunter: ${e.message}`);
+  function exportEmailCandidates(kind) {
+    const list = lastEmailCandidates || [];
+    if (!list.length && kind !== "patterns") {
+      toast("Lance d’abord le permutator");
+      return;
+    }
+    const domain = EmailFinder.normalizeDomain($("#ef-domain")?.value || "") || "export";
+    const name = ($("#ef-fullname")?.value || "contact").replace(/\s+/g, "_");
+    if (kind === "csv") {
+      EmailFinder.downloadText(
+        `ascendos-permutator-${name}-${domain}.csv`,
+        EmailFinder.exportCandidatesCsv(list),
+        "text/csv"
+      );
+      toast("CSV exporté");
+    } else if (kind === "json") {
+      EmailFinder.downloadText(
+        `ascendos-permutator-${name}-${domain}.json`,
+        EmailFinder.exportCandidatesJson(list, { domain, fullName: $("#ef-fullname")?.value || "" }),
+        "application/json"
+      );
+      toast("JSON complet exporté");
+    } else if (kind === "patterns") {
+      EmailFinder.downloadText(
+        "ascendos-email-patterns.json",
+        JSON.stringify({ patterns: EmailFinder.listAllPatterns() }, null, 2),
+        "application/json"
+      );
+      toast("Catalogue patterns exporté");
+    } else if (kind === "copy") {
+      navigator.clipboard.writeText(list.map((c) => c.email).join("\n"));
+      toast(`${list.length} emails copiés`);
     }
   }
 
@@ -1013,7 +2004,7 @@
     toast("Contact sauvé — utilisable dans Apply Queue");
   }
 
-  function dualMailContact(contact, preferredEmail) {
+  async function dualMailContact(contact, preferredEmail) {
     const job = state.jobs.find((j) => j.id === contact.jobId) || {
       title: contact.title,
       company: contact.domain,
@@ -1023,13 +2014,41 @@
       contact.chosenEmail ||
       (contact.candidates || []).find((c) => c.preferred)?.email ||
       (contact.candidates || [])[0]?.email;
+    if (!email) {
+      toast("Aucun email candidat");
+      return;
+    }
     const draft = EmailFinder.buildDualOutreach({
       profile: state.profile,
       job,
       contact,
       email,
     });
-    Connectors.mailtoDraft(draft);
+    const result = await Connectors.sendOrDraft({
+      to: draft.to || email,
+      subject: draft.subject,
+      body: draft.body,
+      confirm: true,
+    });
+    if (result.ok) {
+      WeeklyPlan.log("outreach", { kind: "gmail_send", to: email, jobId: contact.jobId });
+      if (typeof ApplyMemory !== "undefined") {
+        ApplyMemory.add(state, {
+          jobId: contact.jobId,
+          company: job.company || "",
+          role: job.title || "",
+          outcome: "sent",
+          channel: "email",
+          lesson: `Envoyé via Gmail à ${email}`,
+        });
+        persist();
+      }
+      toast(`Envoyé via ton Gmail → ${email}`);
+    } else if (result.path === "fallback_mailto" || result.path === "cancelled_mailto") {
+      toast(result.error || "Brouillon ouvert (Gmail non connecté ou annulé)");
+    } else {
+      toast(result.error || "Envoi impossible");
+    }
   }
 
   function queueJob(jobId) {
@@ -1210,41 +2229,19 @@
     state.settings.customRssFeeds = customRss;
     persist();
 
-    if (status) status.textContent = "Agrégation polie en cours (throttle + sources officielles)…";
+    if (status) status.textContent = "Agrégation locale / fallback (0 clé requise)…";
     try {
-      let incoming = [];
-      let report = [];
-      const apiBase = (state.connectors.aggregateApiBase || "").replace(/\/$/, "");
-
-      if (apiBase) {
-        if (status) status.textContent = `Via backend gratuit ${apiBase}…`;
-        const res = await fetch(`${apiBase}/aggregate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ query: q, hours, sources: enabledIds, rss: customRss }),
-        });
-        if (!res.ok) throw new Error(`API ${res.status}`);
-        const data = await res.json();
-        incoming = data.jobs || [];
-        report = data.report || [{ id: "backend", status: "ok", count: incoming.length }];
-      } else {
-        const out = await FreshRadar.fetchAllFresh({
-          query: q,
-          hours,
-          enabledIds,
-          customRss,
-          apiKeys: {
-            adzunaAppId: state.connectors.adzunaAppId,
-            adzunaAppKey: state.connectors.adzunaAppKey,
-          },
-          force: false,
-          onProgress: (p) => {
-            if (status) status.textContent = `${p.label || p.id}: ${p.status}${p.count != null ? ` (${p.count})` : ""}`;
-          },
-        });
-        incoming = out.jobs || [];
-        report = out.report || [];
-      }
+      const { jobs: incoming, report, path, degraded } = await LocalStack.aggregateJobs({
+        query: q,
+        hours,
+        enabledIds,
+        customRss,
+        connectors: state.connectors,
+        force: false,
+        onProgress: (p) => {
+          if (status) status.textContent = `${p.label || p.id}: ${p.status}${p.count != null ? ` (${p.count})` : ""}`;
+        },
+      });
 
       let added = 0;
       for (const job of incoming) {
@@ -1262,7 +2259,13 @@
             const tone =
               r.status === "ok" || r.status === "cached" || r.status === "fallback_cache"
                 ? "chip-ok"
-                : r.status === "throttled" || r.status === "skipped"
+                : r.status === "throttled" ||
+                    r.status === "skipped" ||
+                    r.status === "skipped_no_key" ||
+                    r.status === "fallback" ||
+                    r.status === "empty" ||
+                    r.status === "down" ||
+                    r.status === "degraded"
                   ? "chip-warn"
                   : "chip-bad";
             return `<span class="chip ${tone}" style="margin:0.2rem" title="${escapeHtml(r.note || "")}">${escapeHtml(
@@ -1272,12 +2275,24 @@
           .join(" ");
       }
       if (status) {
-        status.textContent = `${incoming.length} offres agrégées · ${added} nouvelles · sources respectueuses des quotas`;
+        status.textContent = degraded
+          ? `${incoming.length} offres · ${added} nouvelles · mode dégradé (${path}) — app locale OK`
+          : `${incoming.length} offres · ${added} nouvelles · ${path}`;
       }
-      toast(`${added} nouvelles offres`);
+      toast(
+        degraded
+          ? `${added} offres (dégradé/${path}) — CV/file/profil restent OK`
+          : `${added} nouvelles offres (${path})`
+      );
     } catch (err) {
-      if (status) status.textContent = `Échec agrégation: ${err.message}`;
-      toast("Agrégation partielle / indisponible");
+      // Never brick the app: keep existing jobs, local tools work
+      if (status) {
+        status.textContent = `Sources indisponibles (${err.message || "réseau"}). Offres déjà en local + CV/Apply OK.`;
+      }
+      if (reportEl) {
+        reportEl.innerHTML = `<span class="chip chip-warn">offline · continue sans ce service</span>`;
+      }
+      toast("Réseau/API down — tu continues en local");
     }
   }
 
@@ -1326,22 +2341,182 @@
     toast(n ? `${n} offres en file (prime)` : "Rien de nouveau à filer");
   }
 
-  function renderConnectors() {
-    $("#gmail-client-id").value = state.connectors.gmailClientId || "";
-    $("#linkedin-client-id").value = state.connectors.linkedinClientId || "";
-    if ($("#adzuna-app-id")) $("#adzuna-app-id").value = state.connectors.adzunaAppId || "";
-    if ($("#adzuna-app-key")) $("#adzuna-app-key").value = state.connectors.adzunaAppKey || "";
-    if ($("#aggregate-api-base")) $("#aggregate-api-base").value = state.connectors.aggregateApiBase || "";
-    if ($("#hunter-api-key")) $("#hunter-api-key").value = state.connectors.hunterApiKey || "";
-    $("#gmail-status").textContent = state.connectors.gmailConnected || Connectors.getStoredToken()
-      ? "Session token présente"
-      : "Non connecté (import / mailto OK)";
-    $("#linkedin-status").textContent = state.connectors.linkedinConnected
-      ? "Connecté"
-      : "Non connecté (coller le profil)";
-    $("#gemini-last").textContent = state.connectors.lastGeminiImportAt
+  function saveConnectorFields() {
+    if (!AscendSecurity.isUnlocked() && AscendSecurity.getMode() === "passphrase") {
+      toast("Déverrouille le coffre d'abord");
+      return false;
+    }
+    Connectors.saveConfig(state, {
+      gmailClientId: $("#gmail-client-id")?.value,
+      linkedinClientId: $("#linkedin-client-id")?.value,
+    });
+    state.connectors.adzunaAppId = $("#adzuna-app-id")?.value.trim() || "";
+    state.connectors.adzunaAppKey = $("#adzuna-app-key")?.value.trim() || "";
+    state.connectors.aggregateApiBase = $("#aggregate-api-base")?.value.trim().replace(/\/$/, "") || "";
+    state.connectors.hunterApiKey = $("#hunter-api-key")?.value.trim() || "";
+    state.connectors.underIaApiKey = $("#under-ia-key")?.value.trim() || "";
+    state.connectors.underIaApiBase = ($("#under-ia-base")?.value.trim() || "").replace(/\/$/, "");
+    persist();
+    return true;
+  }
+
+  async function applyMagicLink(raw) {
+    const payload = Connectors.parseMagicToken(raw);
+    if (!payload) {
+      toast("Magic link invalide");
+      return false;
+    }
+    try {
+      let secrets = payload;
+      if (payload.enc || payload.v === 2) {
+        const pass = $("#magic-link-pass")?.value || $("#vault-pass")?.value || "";
+        secrets = await AscendSecurity.openMagicPayload(payload, pass);
+      } else if (AscendSecurity.getMode() === "passphrase") {
+        toast("Lien en clair détecté — migre vers un magic link chiffré après import");
+      }
+      Connectors.applyMagicPayload(state, secrets);
+      persist();
+      try {
+        sessionStorage.removeItem("ascendos.pendingMagic");
+      } catch {
+        /* ignore */
+      }
+      renderConnectors();
+      toast("Magic link appliqué — secrets dans le coffre");
+      return true;
+    } catch (e) {
+      toast(e.message || "Échec magic link");
+      return false;
+    }
+  }
+
+  async function runOneClickAction(item) {
+    if (item.action === "copy_gemini_prompt") {
+      try {
+        await navigator.clipboard.writeText(Connectors.GEMINI_PROMPT);
+        toast("Prompt IA copié — colle-le dans ton assistant");
+      } catch {
+        toast("Impossible de copier le prompt");
+      }
+    }
+    if (item.action === "oauth_gmail") {
+      if (!saveConnectorFields()) return;
+      const id = state.connectors.gmailClientId;
+      if (!id) {
+        LocalStack.bindLocalSession(state.profile, "local");
+        const draft = Connectors.buildRecruiterOutreach(state.profile, state.jobs[0]);
+        Connectors.mailtoDraft(draft);
+        toast("Sans Client ID → mailto / Gmail web (local). OAuth reste optionnel.");
+        return;
+      }
+      const redirect = window.location.href.split("#")[0].split("?")[0];
+      const nonce = AscendSecurity.createOAuthState("gmail");
+      window.location.href = Connectors.buildGmailAuthUrl(id, redirect, nonce);
+      return;
+    }
+    if (item.action === "oauth_linkedin") {
+      if (!saveConnectorFields()) return;
+      const id = state.connectors.linkedinClientId;
+      if (!id) {
+        bindLinkedInSessionLocal();
+        toast("Sans Client ID → liaison LinkedIn locale (profil)");
+        return;
+      }
+      const redirect = window.location.href.split("#")[0].split("?")[0];
+      const nonce = AscendSecurity.createOAuthState("linkedin");
+      window.location.href = Connectors.buildLinkedInAuthUrl(id, redirect, nonce);
+      return;
+    }
+    if (item.href) Connectors.openExternal(item.href);
+  }
+
+  async function renderConnectors() {
+    const locked = AscendSecurity.getMode() === "passphrase" && !AscendSecurity.isUnlocked();
+    const st = AscendSecurity.status();
+    if ($("#vault-status")) {
+      $("#vault-status").textContent = locked
+        ? "Coffre · verrouillé"
+        : `Coffre · ${st.mode} · ${st.secretCount} secret(s) · auto-lock ${st.autoLockMinutes} min`;
+      $("#vault-status").className = `chip ${locked ? "chip-warn" : "chip-ok"}`;
+    }
+
+    const fill = (id, val) => {
+      const el = $(id);
+      if (!el) return;
+      el.value = locked ? "" : val || "";
+      el.disabled = locked;
+      el.placeholder = locked ? "•••• verrouillé" : el.getAttribute("data-ph") || el.placeholder;
+    };
+    fill("#gmail-client-id", state.connectors.gmailClientId);
+    fill("#linkedin-client-id", state.connectors.linkedinClientId);
+    fill("#adzuna-app-id", state.connectors.adzunaAppId);
+    fill("#adzuna-app-key", state.connectors.adzunaAppKey);
+    fill("#aggregate-api-base", state.connectors.aggregateApiBase);
+    fill("#hunter-api-key", state.connectors.hunterApiKey);
+    fill("#under-ia-key", state.connectors.underIaApiKey);
+    if ($("#under-ia-base")) {
+      $("#under-ia-base").value = state.connectors.underIaApiBase || "";
+      $("#under-ia-base").disabled = false;
+    }
+
+    const token = await Connectors.getStoredToken();
+    const gmailOk = state.connectors.gmailConnected || token;
+    if ($("#gmail-status")) {
+      $("#gmail-status").textContent = gmailOk
+        ? "Gmail · prêt à envoyer (ton compte)"
+        : state.connectors.gmailClientId
+          ? "Gmail · Client ID OK — connecte pour envoyer"
+          : "Gmail · mailto si pas connecté";
+      $("#gmail-status").className = `chip ${gmailOk || state.connectors.gmailClientId ? "chip-ok" : "chip-info"}`;
+    }
+    if ($("#linkedin-status")) {
+      const liOk = state.connectors.linkedinConnected || state.connectors.linkedinClientId;
+      $("#linkedin-status").textContent = state.connectors.linkedinConnected
+        ? "LinkedIn · connecté"
+        : state.connectors.linkedinClientId
+          ? "LinkedIn · prêt (1-clic)"
+          : "LinkedIn · coller profil";
+      $("#linkedin-status").className = `chip ${liOk ? "chip-ok" : "chip-info"}`;
+    }
+    const geminiTxt = state.connectors.lastGeminiImportAt
       ? new Date(state.connectors.lastGeminiImportAt).toLocaleString()
       : "Jamais";
+    if ($("#gemini-last")) $("#gemini-last").textContent = geminiTxt;
+    if ($("#gemini-last-chip")) $("#gemini-last-chip").textContent = `IA · ${geminiTxt}`;
+
+    const capRoot = $("#local-stack-caps");
+    if (capRoot && typeof LocalStack !== "undefined") {
+      let health = "";
+      if (typeof AscendResilience !== "undefined") {
+        const down = AscendResilience.statusReport().filter((h) => h.cooling);
+        if (down.length) {
+          health = `<p style="color:var(--mist);font-size:0.8rem;margin:0.5rem 0 0">Hôtes en cooldown (down): ${down
+            .map((h) => escapeHtml(h.host))
+            .join(", ")} — l’app continue en local/cache.</p>`;
+        }
+      }
+      capRoot.innerHTML =
+        `<p style="color:var(--mist);font-size:0.82rem;margin:0 0 0.5rem">Sans connecteur / clé / si un service est down : stack locale + cache.</p>` +
+        LocalStack.statusChipsHtml(state, escapeHtml) +
+        health;
+    }
+
+    const grid = $("#oneclick-grid");
+    if (grid) {
+      const top = state.applyQueue[0] && state.jobs.find((j) => j.id === state.applyQueue[0].jobId);
+      const draft = Connectors.buildRecruiterOutreach(state.profile, top || state.jobs[0]);
+      const links = Connectors.oneClickLinks(state.profile, draft);
+      grid.innerHTML = links
+        .map(
+          (item) => `<button type="button" class="oneclick-card btn-${item.tone || "soft"}" data-oc="${escapeHtml(
+            item.id
+          )}">
+          <strong>${escapeHtml(item.label)}</strong>
+          <span>${escapeHtml(item.blurb)}</span>
+        </button>`
+        )
+        .join("");
+    }
   }
 
   function escapeHtml(str) {
@@ -1353,6 +2528,10 @@
   }
 
   function render() {
+    renderSession();
+    renderQuotas();
+    renderCockpit();
+    renderJobIntel();
     renderDashboard();
     renderProfile();
     renderAccelerator();
@@ -1368,8 +2547,22 @@
   }
 
   function bind() {
+    $("#btn-oneclick")?.addEventListener("click", runOneClickWorkflow);
+    $("#wf-pick")?.addEventListener("click", (e) => {
+      const card = e.target.closest("[data-wf]");
+      if (!card) return;
+      selectedWorkflowId = card.dataset.wf;
+      renderCockpit();
+    });
+    $("#wf-next-actions")?.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-go]");
+      if (!b) return;
+      navigate(b.dataset.go);
+    });
+
     $$(".side-link").forEach((a) =>
       a.addEventListener("click", (e) => {
+        if (!a.dataset.view) return; // external / real href (ex: paths.html)
         e.preventDefault();
         navigate(a.dataset.view);
         $("#sidebar").classList.remove("open");
@@ -1382,18 +2575,122 @@
 
     $("#btn-save-profile")?.addEventListener("click", saveProfileFromForm);
     $("#btn-suggest-vectors")?.addEventListener("click", suggestVectors);
+    $("#btn-ask-work-prefs")?.addEventListener("click", () => askWorkPrefsInteractive());
+    $("#btn-ack-disclaimer")?.addEventListener("click", () => {
+      try {
+        localStorage.setItem("ascendos.disclaimer.ack", "1");
+      } catch {
+        /* */
+      }
+      $("#disclaimer-banner")?.setAttribute("hidden", "");
+    });
     $("#btn-run-ats")?.addEventListener("click", runAts);
     $("#btn-boost-cv")?.addEventListener("click", boostCv);
+    $("#btn-tailor-cv")?.addEventListener("click", tailorCvFromUi);
+    $("#btn-cv-nl")?.addEventListener("click", reviseCvNl);
+    $("#btn-cv-scan")?.addEventListener("click", scanCvIssues);
+    $("#btn-cv-pdf")?.addEventListener("click", printCvPdf);
+    $("#btn-gen-letter")?.addEventListener("click", generateLetterFromUi);
+    $("#btn-letter-nl")?.addEventListener("click", reviseLetterNl);
+    $("#btn-copy-letter")?.addEventListener("click", async () => {
+      await navigator.clipboard.writeText($("#letter-preview")?.value || "");
+      toast("Lettre copiée");
+    });
+    $("#btn-mem-add")?.addEventListener("click", addApplyMemoryFromUi);
+    $("#btn-auth-enable")?.addEventListener("click", async () => {
+      try {
+        await AscendAuth.enablePassword($("#auth-pass")?.value || "");
+        refreshAuthStatus();
+        toast("Login local activé · JWT minté");
+      } catch (e) {
+        toast(e.message || "Échec activation");
+      }
+    });
+    $("#btn-auth-lock")?.addEventListener("click", async () => {
+      persist();
+      await AscendAuth.lock({ reseal: true });
+      refreshAuthStatus();
+      await showAuthGateIfNeeded();
+      toast("Session verrouillée");
+    });
+    $("#btn-auth-disable")?.addEventListener("click", () => {
+      AscendAuth.disableAuth();
+      refreshAuthStatus();
+      $("#auth-gate")?.setAttribute("hidden", "");
+      toast("Login désactivé");
+    });
+    $("#btn-gate-login")?.addEventListener("click", () => gateLoginPassword());
+    $("#gate-pass")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") gateLoginPassword();
+    });
+    $("#btn-gate-google")?.addEventListener("click", () => {
+      startGoogleSession();
+    });
+    $("#btn-gate-linkedin")?.addEventListener("click", async () => {
+      bindLinkedInSessionLocal();
+      if (typeof AscendAuth !== "undefined") {
+        const sess = AscendSession.load();
+        await AscendAuth.loginOAuth({
+          provider: "linkedin",
+          name: sess.name,
+          email: sess.email,
+          sub: sess.sub || sess.linkedinUrl,
+        });
+        $("#auth-gate")?.setAttribute("hidden", "");
+        refreshAuthStatus();
+      }
+    });
     $("#btn-add-job")?.addEventListener("click", addJobFromForm);
     $("#btn-sort-queue-fresh")?.addEventListener("click", sortApplyQueueFreshFirst);
     $("#btn-fetch-fresh")?.addEventListener("click", fetchFreshJobs);
     $("#btn-queue-all-prime")?.addEventListener("click", queueAllPrime);
+    $("#btn-batch-apply")?.addEventListener("click", () => runBatchOrLoop({ loop: false }));
+    $("#btn-loop-apply")?.addEventListener("click", () => runBatchOrLoop({ loop: true }));
     $("#btn-save-fresh-settings")?.addEventListener("click", saveFreshSettings);
     $("#btn-af-build")?.addEventListener("click", () => buildAutofillPack());
     $("#btn-af-detect")?.addEventListener("click", () => {
       const p = AutoFill.detectPortal($("#af-url")?.value || "");
       if ($("#af-portal")) $("#af-portal").value = p.id;
       toast(`Portail: ${p.label}`);
+    });
+    $("#btn-af-ask-gaps")?.addEventListener("click", () => askProfileGapsInteractive());
+    $("#btn-enrich-wikidata")?.addEventListener("click", async () => {
+      const hitsRoot = $("#enrich-hits");
+      if (hitsRoot) hitsRoot.textContent = "Recherche publique…";
+      try {
+        const out = await PublicEnrich.fetchWikidataHints(state.profile.fullName);
+        if (!out.ok || !out.hits?.length) {
+          if (hitsRoot) hitsRoot.innerHTML = `<p style="color:var(--mist)">Aucun hint public — essaie un collage manuel.</p>`;
+          return;
+        }
+        if (hitsRoot) {
+          hitsRoot.innerHTML = out.hits
+            .map(
+              (h) => `<div class="job-card"><h4>${escapeHtml(h.label)}</h4>
+              <div class="meta">${escapeHtml(h.description)}</div>
+              <a class="btn btn-ghost btn-tiny" href="${escapeHtml(h.url)}" target="_blank" rel="noopener">Ouvrir</a></div>`
+            )
+            .join("");
+        }
+        toast(`${out.hits.length} hint(s) publics`);
+      } catch (e) {
+        toast(e.message || "Enrichissement indisponible");
+      }
+    });
+    $("#btn-enrich-edu-paste")?.addEventListener("click", () => {
+      const raw = $("#enrich-paste")?.value || "";
+      const edu = PublicEnrich.educationFromPaste(raw);
+      if (!edu.length) {
+        toast("Aucun diplôme détecté dans le collage");
+        return;
+      }
+      state.profile.education = [...new Set([...(state.profile.education || []), ...edu])];
+      persist();
+      renderProfile();
+      if ($("#enrich-hits")) {
+        $("#enrich-hits").innerHTML = edu.map((e) => `<span class="chip chip-ok">${escapeHtml(e)}</span>`).join(" ");
+      }
+      toast(`${edu.length} formation(s) ajoutée(s)`);
     });
     $("#btn-af-copy-json")?.addEventListener("click", async () => {
       if (!lastFillPack) buildAutofillPack();
@@ -1454,48 +2751,143 @@
       persist();
       renderProfile();
       renderConnectors();
-      toast("Import IA / Gemini fusionné");
+      toast("Import IA fusionné");
     });
 
+    $("#btn-session-google")?.addEventListener("click", startGoogleSession);
+    $("#btn-session-linkedin")?.addEventListener("click", bindLinkedInSessionLocal);
+    $("#btn-session-signout")?.addEventListener("click", signOutSession);
+    $("#btn-session-out")?.addEventListener("click", signOutSession);
+
     $("#btn-save-connectors")?.addEventListener("click", () => {
-      Connectors.saveConfig(state, {
-        gmailClientId: $("#gmail-client-id").value,
-        linkedinClientId: $("#linkedin-client-id").value,
-      });
-      state.connectors.adzunaAppId = $("#adzuna-app-id")?.value.trim() || "";
-      state.connectors.adzunaAppKey = $("#adzuna-app-key")?.value.trim() || "";
-      state.connectors.aggregateApiBase = $("#aggregate-api-base")?.value.trim().replace(/\/$/, "") || "";
-      state.connectors.hunterApiKey = $("#hunter-api-key")?.value.trim() || "";
+      if (saveConnectorFields()) toast("Secrets sauvés dans le coffre chiffré");
+    });
+
+    $("#btn-magic-apply")?.addEventListener("click", () => {
+      applyMagicLink($("#magic-link-input")?.value || "");
+    });
+    $("#magic-link-input")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyMagicLink($("#magic-link-input").value);
+      }
+    });
+    $("#btn-magic-copy")?.addEventListener("click", async () => {
+      if (!saveConnectorFields()) return;
+      try {
+        if (!(AscendSecurity.getMode() === "passphrase" && AscendSecurity.isUnlocked())) {
+          toast("Active d'abord une passphrase (panneau Coffre) pour un lien chiffré");
+          navigate("connectors");
+          return;
+        }
+        const url = await Connectors.secureMagicLinkUrl(state.connectors);
+        await navigator.clipboard.writeText(url);
+        if ($("#magic-link-input")) $("#magic-link-input").value = url;
+        toast("Magic link chiffré copié");
+        renderConnectors();
+      } catch (e) {
+        toast(e.message || "Impossible de créer le magic link");
+      }
+    });
+
+    const lockBtns = ["#btn-vault-lock", "#btn-vault-lock-inline"];
+    lockBtns.forEach((sel) => $(sel)?.addEventListener("click", lockVaultUi));
+
+    $("#btn-vault-enable")?.addEventListener("click", async () => {
+      const p1 = $("#vault-pass")?.value || "";
+      const p2 = $("#vault-pass2")?.value || "";
+      if (p1 !== p2) {
+        toast("Passphrases différentes");
+        return;
+      }
+      try {
+        // Capture current form secrets into memory before re-sealing with passphrase
+        Connectors.saveConfig(state, {
+          gmailClientId: $("#gmail-client-id")?.value,
+          linkedinClientId: $("#linkedin-client-id")?.value,
+        });
+        state.connectors.adzunaAppId = $("#adzuna-app-id")?.value.trim() || state.connectors.adzunaAppId || "";
+        state.connectors.adzunaAppKey = $("#adzuna-app-key")?.value.trim() || state.connectors.adzunaAppKey || "";
+        state.connectors.aggregateApiBase =
+          $("#aggregate-api-base")?.value.trim().replace(/\/$/, "") || state.connectors.aggregateApiBase || "";
+        state.connectors.hunterApiKey = $("#hunter-api-key")?.value.trim() || state.connectors.hunterApiKey || "";
+        state.connectors.underIaApiKey = $("#under-ia-key")?.value.trim() || state.connectors.underIaApiKey || "";
+        state.connectors.underIaApiBase =
+          ($("#under-ia-base")?.value.trim() || state.connectors.underIaApiBase || "").replace(/\/$/, "");
+        await AscendSecurity.persistSecretsFrom(state.connectors);
+        await AscendSecurity.enablePassphrase(p1);
+        AscendStore.save(state);
+        renderConnectors();
+        toast("Passphrase activée — coffre renforcé");
+        if ($("#vault-pass")) $("#vault-pass").value = "";
+        if ($("#vault-pass2")) $("#vault-pass2").value = "";
+      } catch (e) {
+        toast(e.message || "Échec activation");
+      }
+    });
+
+    $("#btn-vault-unlock")?.addEventListener("click", async () => {
+      const pass = $("#vault-pass2")?.value || $("#vault-pass")?.value || "";
+      try {
+        await AscendSecurity.unlockPassphrase(pass);
+        AscendSecurity.applySecretsToState(state);
+        render();
+        toast("Coffre déverrouillé");
+      } catch (e) {
+        toast(e.message || "Passphrase incorrecte");
+      }
+    });
+
+    $("#btn-vault-wipe")?.addEventListener("click", async () => {
+      if (!confirm("Effacer définitivement toutes les API keys / tokens du coffre ?")) return;
+      await AscendSecurity.wipeSecrets();
+      AscendSecurity.clearSecretsFromState(state);
+      state.connectors.gmailConnected = false;
+      AscendStore.save(state);
+      render();
+      toast("Secrets effacés");
+    });
+
+    $("#btn-clear-oauth")?.addEventListener("click", () => {
+      AscendSecurity.clearOAuthToken();
+      state.connectors.gmailConnected = false;
       persist();
-      toast("Connecteurs / clés sauvés (localStorage)");
+      renderConnectors();
+      toast("Token OAuth révoqué (session)");
+    });
+
+    window.addEventListener("ascendos:vault-lock", () => {
+      AscendSecurity.clearSecretsFromState(state);
+      state.connectors.gmailConnected = false;
+      render();
+      toast("Auto-lock : coffre verrouillé");
+    });
+
+    $("#oneclick-grid")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-oc]");
+      if (!btn) return;
+      const top = state.applyQueue[0] && state.jobs.find((j) => j.id === state.applyQueue[0].jobId);
+      const draft = Connectors.buildRecruiterOutreach(state.profile, top || state.jobs[0]);
+      const item = Connectors.oneClickLinks(state.profile, draft).find((x) => x.id === btn.dataset.oc);
+      if (item) runOneClickAction(item);
     });
 
     $("#btn-connect-gmail")?.addEventListener("click", () => {
-      const id = state.connectors.gmailClientId || $("#gmail-client-id").value.trim();
-      if (!id) {
-        toast("Ajoute un Google Client ID d'abord");
-        return;
-      }
-      const redirect = window.location.href.split("#")[0];
-      window.location.href = Connectors.buildGmailAuthUrl(id, redirect);
+      runOneClickAction({ action: "oauth_gmail" });
     });
 
     $("#btn-connect-linkedin")?.addEventListener("click", () => {
-      const id = state.connectors.linkedinClientId || $("#linkedin-client-id").value.trim();
-      if (!id) {
-        toast("Ajoute un LinkedIn Client ID d'abord");
-        return;
-      }
-      const redirect = window.location.href.split("#")[0];
-      window.location.href = Connectors.buildLinkedInAuthUrl(id, redirect);
+      runOneClickAction({ action: "oauth_linkedin" });
     });
 
     $("#btn-export-json")?.addEventListener("click", () => {
-      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const safe = AscendSecurity.redactState(state);
+      const blob = new Blob([JSON.stringify(safe, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "ascendos-profile.json";
       a.click();
+      toast("Export sans API keys / tokens");
     });
 
     $("#btn-import-json")?.addEventListener("change", async (e) => {
@@ -1503,11 +2895,24 @@
       if (!file) return;
       const text = await file.text();
       try {
+        const parsed = JSON.parse(text);
+        const secrets = AscendSecurity.extractSecrets(parsed.connectors || {});
         state = AscendStore.defaultState();
-        state = { ...state, ...JSON.parse(text) };
+        state = { ...state, ...parsed };
+        state.connectors = AscendSecurity.stripSecrets(state.connectors || {});
+        if (AscendSecurity.hasAnySecret(secrets)) {
+          Object.assign(state.connectors, secrets);
+          if (!AscendSecurity.isUnlocked()) {
+            await AscendSecurity.unlockDevice();
+          }
+        }
         persist();
         render();
-        toast("Backup JSON importé");
+        toast(
+          AscendSecurity.hasAnySecret(secrets)
+            ? "Import OK — secrets migrés dans le coffre"
+            : "Backup JSON importé"
+        );
       } catch {
         toast("JSON invalide");
       }
@@ -1516,11 +2921,13 @@
     $("#accel-list")?.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-act]");
       if (!btn) return;
+      if (btn.dataset.act === "open") openJob(btn.dataset.id);
       if (btn.dataset.act === "queue") queueJob(btn.dataset.id);
       if (btn.dataset.act === "status") {
         const job = state.jobs.find((j) => j.id === btn.dataset.id);
         if (job) {
           job.status = btn.dataset.status;
+          if (btn.dataset.status === "applied") WeeklyPlan.log("apply", { jobId: job.id });
           persist();
           render();
         }
@@ -1528,6 +2935,11 @@
     });
 
     $("#apply-list")?.addEventListener("click", (e) => {
+      const openBtn = e.target.closest("button[data-act=open-job]");
+      if (openBtn) {
+        openJob(openBtn.dataset.id);
+        return;
+      }
       const btn = e.target.closest("button[data-act]");
       if (!btn) return;
       const qid = btn.dataset.qid;
@@ -1538,12 +2950,19 @@
         const ta = $(`textarea[data-qid="${qid}"]`);
         if (ta) item.answer = ta.value;
         const draft = Connectors.buildRecruiterOutreach(state.profile, job);
-        Connectors.mailtoDraft({
-          to: "",
-          subject: draft.subject,
-          body: `${draft.body}\n\n---\nRéponses formulaire ATS/CRM:\n${item.answer}`,
-        });
+        const body = `${draft.body}\n\n---\nRéponses formulaire ATS/CRM:\n${item.answer}`;
         persist();
+        Connectors.sendOrDraft({
+          to: draft.to || "",
+          subject: draft.subject,
+          body,
+          confirm: true,
+        }).then((r) => {
+          if (r.ok) {
+            WeeklyPlan.log("outreach", { jobId: item.jobId });
+            toast("Envoyé via ton Gmail");
+          } else toast(r.error || "Brouillon ouvert (connecte Gmail pour envoyer)");
+        });
       }
       if (btn.dataset.act === "mail-contact") {
         const contact = (state.contacts || []).find((c) => c.id === btn.dataset.cid);
@@ -1555,7 +2974,12 @@
         navigate("autofill");
       }
       if (btn.dataset.act === "done") {
-        if (job) job.status = "applied";
+        if (job) {
+          const r = jobContext(job).readiness;
+          if (!r.canSend && !confirm(`Ready ${r.total}% — ${r.verdict}. Marquer quand même comme envoyé ?`)) return;
+          job.status = "applied";
+          WeeklyPlan.log("apply", { jobId: job.id });
+        }
         state.applyQueue = state.applyQueue.filter((q) => q.id !== qid);
         persist();
         render();
@@ -1589,7 +3013,11 @@
     $("#btn-guess-emails")?.addEventListener("click", runEmailGuess);
     $("#btn-guess-domain")?.addEventListener("click", guessDomainForJob);
     $("#btn-check-mx")?.addEventListener("click", checkMx);
-    $("#btn-hunter-find")?.addEventListener("click", hunterEnrich);
+    $("#btn-hunter-find")?.addEventListener("click", optionalApiEnrich);
+    $("#btn-ef-export-csv")?.addEventListener("click", () => exportEmailCandidates("csv"));
+    $("#btn-ef-export-json")?.addEventListener("click", () => exportEmailCandidates("json"));
+    $("#btn-ef-export-patterns")?.addEventListener("click", () => exportEmailCandidates("patterns"));
+    $("#btn-ef-copy-all")?.addEventListener("click", () => exportEmailCandidates("copy"));
 
     $("#ef-job")?.addEventListener("change", () => {
       const job = state.jobs.find((j) => j.id === $("#ef-job").value);
@@ -1614,7 +3042,17 @@
           contact: { fullName, role },
           email,
         });
-        Connectors.mailtoDraft(draft);
+        Connectors.sendOrDraft({
+          to: draft.to || email,
+          subject: draft.subject,
+          body: draft.body,
+          confirm: true,
+        }).then((r) => {
+          if (r.ok) {
+            WeeklyPlan.log("outreach", { to: email });
+            toast(`Envoyé via ton Gmail → ${email}`);
+          } else toast(r.error || "Brouillon ouvert");
+        });
       }
     });
 
@@ -1635,14 +3073,80 @@
   }
 
   // boot
-  ensureSeed();
-  const token = Connectors.captureImplicitTokenFromHash();
-  if (token) {
-    state.connectors.gmailConnected = true;
-    persist();
-    toast("Gmail OAuth: token reçu (session)");
-  }
-  bind();
-  const initial = (location.hash || "#dashboard").replace("#", "") || "dashboard";
-  navigate(initial);
+  (async function boot() {
+    ensureSeed();
+    let bootView = "cockpit";
+    const sec = await AscendSecurity.init(state);
+    if (sec.migrated) {
+      AscendStore.save(state);
+      toast("Clés migrées vers le coffre chiffré");
+    }
+
+    // OAuth token in hash first (clears hash)
+    const token = await Connectors.captureImplicitTokenFromHash();
+    if (token) {
+      state.connectors.gmailConnected = true;
+      try {
+        const sess = await AscendSession.fromGoogleAccessToken(token);
+        state.profile = AscendSession.mergeIntoProfile(state.profile, sess);
+        if (typeof AscendAuth !== "undefined") {
+          await AscendAuth.loginOAuth({
+            provider: "google",
+            sub: sess.sub,
+            email: sess.email,
+            name: sess.name,
+          });
+        }
+        toast(`Session Google locale · ${sess.email || sess.name || "OK"}`);
+      } catch {
+        toast("Token reçu — session identité non lue (scopes / réseau)");
+      }
+      persist();
+      bootView = "connectors";
+    }
+
+    const magic = Connectors.captureMagicFromLocation();
+    if (magic) {
+      bootView = "connectors";
+      if (magic.enc || magic.v === 2) {
+        toast("Magic link chiffré — entre la passphrase puis Appliquer");
+      } else {
+        Connectors.applyMagicPayload(state, magic);
+        persist();
+        toast("Magic link appliqué — secrets dans le coffre");
+      }
+    }
+
+    bind();
+
+    try {
+      if (!localStorage.getItem("ascendos.disclaimer.ack")) {
+        $("#disclaimer-banner")?.removeAttribute("hidden");
+      }
+    } catch {
+      $("#disclaimer-banner")?.removeAttribute("hidden");
+    }
+
+    const gated = await showAuthGateIfNeeded();
+    refreshAuthStatus();
+    if (gated) {
+      // Still allow connectors/hash capture UI behind gate? Gate covers all — OK
+    }
+
+    const pendingTok = sessionStorage.getItem("ascendos.pendingMagic");
+    if (pendingTok && $("#magic-link-input")) {
+      $("#magic-link-input").value = pendingTok;
+    }
+
+    const hashView = (location.hash || "").replace(/^#/, "").split(/[/?&]/)[0];
+    const initial =
+      hashView && !hashView.startsWith("ml.") && !hashView.includes("access_token")
+        ? hashView
+        : bootView;
+    if (sec.locked) bootView = "connectors";
+    if (!gated) {
+      navigate(sec.locked ? "connectors" : initial || "cockpit");
+      if (sec.locked) toast("Coffre verrouillé — entre ta passphrase");
+    }
+  })();
 })();

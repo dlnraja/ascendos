@@ -1,7 +1,13 @@
-# Optional backends
+# Optional backends (free tiers)
 
-- Cloudflare Worker: `workers/aggregate.js` + `wrangler.toml`
-- Vercel: `api/aggregate.js`
-- Oracle / any VPS: `server/oracle-aggregate.mjs`
+| Target | Path | GitHub Action |
+|--------|------|---------------|
+| Cloudflare Worker | `workers/aggregate.js` + `wrangler.toml` | `deploy-cloudflare.yml` |
+| Cloudflare Pages | static root | `deploy-cloudflare-pages.yml` |
+| Vercel | `api/aggregate.js` + `vercel.json` | `deploy-vercel.yml` |
+| Oracle Always Free | `server/oracle-aggregate.mjs` | `deploy-oracle.yml` |
+| GitHub Pages | static | `pages.yml` |
 
-See [docs/FREE_HOSTING.md](../docs/FREE_HOSTING.md).
+Secrets & steps: [docs/FREE_HOSTING.md](../docs/FREE_HOSTING.md).
+
+Checklist: Actions → **Free deploy matrix**.

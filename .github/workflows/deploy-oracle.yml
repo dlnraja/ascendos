@@ -1,0 +1,85 @@
+# Optional: sync AscendOS to Oracle Cloud Always Free VM via SSH
+# Secrets: ORACLE_HOST, ORACLE_USER, ORACLE_SSH_KEY
+# Optional: ORACLE_PATH (default ~/ascendos)
+# Docs: docs/FREE_HOSTING.md
+
+name: Deploy Oracle Always Free
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - "server/**"
+      - "shared/**"
+      - "index.html"
+      - "app.html"
+      - "assets/**"
+      - ".github/workflows/deploy-oracle.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "${{ secrets.ORACLE_HOST }}" ] || [ -z "${{ secrets.ORACLE_USER }}" ] || [ -z "${{ secrets.ORACLE_SSH_KEY }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Oracle Always Free: ajoute ORACLE_HOST, ORACLE_USER, ORACLE_SSH_KEY (Settings → Secrets)."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack release
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          tar -czf ascendos.tgz \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=ascendos.tgz \
+            .
+
+      - name: Upload & restart on Oracle
+        if: steps.check.outputs.skip == 'false'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          source: "ascendos.tgz"
+          target: "/tmp"
+
+      - name: Extract & restart aggregate
+        if: steps.check.outputs.skip == 'false'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            set -e
+            DEST="${{ secrets.ORACLE_PATH }}"
+            DEST="${DEST:-$HOME/ascendos}"
+            mkdir -p "$DEST"
+            tar -xzf /tmp/ascendos.tgz -C "$DEST"
+            cd "$DEST"
+            if command -v node >/dev/null 2>&1; then
+              (pkill -f 'oracle-aggregate' || true)
+              nohup node server/oracle-aggregate.mjs >/tmp/ascendos-agg.log 2>&1 &
+              echo "oracle-aggregate restarted"
+              curl -fsS "http://127.0.0.1:8787/health" || true
+            else
+              echo "Node manquant — installe Node 20 sur la VM Always Free"
+              exit 1
+            fi

@@ -1,0 +1,38 @@
+# One-click overview: which free deploys are configured
+name: Free deploy matrix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Status
+        env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACC: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          V_TOK: ${{ secrets.VERCEL_TOKEN }}
+          V_ORG: ${{ secrets.VERCEL_ORG_ID }}
+          V_PRJ: ${{ secrets.VERCEL_PROJECT_ID }}
+          O_HOST: ${{ secrets.ORACLE_HOST }}
+          O_USER: ${{ secrets.ORACLE_USER }}
+          O_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+        run: |
+          echo "## AscendOS free deploy checklist" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cible | Secret OK ? | Workflow |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$CF" ] && [ -n "$CF_ACC" ]; then CF_OK=YES; else CF_OK=NO; fi
+          if [ -n "$V_TOK" ] && [ -n "$V_ORG" ] && [ -n "$V_PRJ" ]; then V_OK=YES; else V_OK=NO; fi
+          if [ -n "$O_HOST" ] && [ -n "$O_USER" ] && [ -n "$O_KEY" ]; then O_OK=YES; else O_OK=NO; fi
+          echo "| GitHub Pages | (Pages source) | \`pages.yml\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cloudflare Worker | $CF_OK | \`deploy-cloudflare.yml\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cloudflare Pages | $CF_OK | \`deploy-cloudflare-pages.yml\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Vercel Hobby | $V_OK | \`deploy-vercel.yml\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Oracle Always Free | $O_OK | \`deploy-oracle.yml\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Voir \`docs/FREE_HOSTING.md\`." >> "$GITHUB_STEP_SUMMARY"

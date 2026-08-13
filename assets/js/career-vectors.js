@@ -528,6 +528,26 @@ const CareerVectors = (() => {
       }
     }
 
+    let workFit = null;
+    if (typeof WorkPrefs !== "undefined") {
+      workFit = WorkPrefs.matchJob(job, profile);
+      if (workFit.fit === "strong") {
+        composite += 8;
+        bridgeReasons.push(`Lieu/mode : ${workFit.label} (${workFit.score})`);
+      } else if (workFit.fit === "ok") {
+        composite += 3;
+        bridgeReasons.push(`Lieu/mode : ${workFit.label}`);
+      } else if (workFit.fit === "weak") {
+        composite -= 6;
+        bridgeReasons.push(`Lieu/mode limite : ${workFit.arrangement?.label || workFit.label}`);
+      } else if (workFit.fit === "no") {
+        composite -= 14;
+        bridgeReasons.push(`Hors prefs lieu/mode : ${workFit.arrangement?.label || workFit.label}`);
+      } else if (workFit.fit === "unset") {
+        bridgeReasons.push("Prefs lieu/remote non définies — configure-les dans le profil.");
+      }
+    }
+
     // Slight boost if top vectors are all strong
     const strongCount = vectorBreakdown.filter((x) => x.score >= 70).length;
     if (strongCount >= 3) composite += 4;
@@ -569,6 +589,7 @@ const CareerVectors = (() => {
       vectors: vectorBreakdown,
       activeVectorIds: activeIds,
       passerelle: passerelleFit,
+      workFit,
       signals: { skillHits, strongCount },
     };
   }

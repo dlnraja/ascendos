@@ -62,6 +62,19 @@ const AutoFill = (() => {
       "urls[LinkedIn]",
     ],
     location: ["location", "city", "address", "ville", "candidate.location", "geo", "current_location"],
+    work_arrangement: [
+      "work_arrangement",
+      "work_mode",
+      "remote",
+      "teletravail",
+      "workplace_type",
+      "work_type",
+      "hybrid",
+      "onsite",
+      "modality",
+      "modalite",
+    ],
+    preferred_locations: ["preferred_locations", "preferred_cities", "desired_location", "target_location"],
     headline: ["headline", "title", "job_title", "current_title", "poste", "titre"],
     summary: [
       "summary",
@@ -204,6 +217,9 @@ const AutoFill = (() => {
       phone: profile.phone || "",
       linkedin: profile.linkedinUrl || "",
       location: profile.location || "",
+      work_arrangement:
+        typeof WorkPrefs !== "undefined" ? WorkPrefs.summaryText(profile) : "",
+      preferred_locations: (profile.workPrefs?.preferredLocations || []).join(", "),
       headline: profile.headline || "",
       summary: cover,
       resume_text: experienceText,
@@ -287,7 +303,15 @@ function score(el,canon){
   if(t.indexOf(n(canon))>=0) s+=2;
   return s;
 }
-var filled=0, map={
+var need=['first_name','last_name','email','phone','linkedin','location','summary','salary','website'];
+need.forEach(function(k){
+  if(!V[k]||String(V[k]).trim()===''){
+    var q={first_name:'Prénom ?',last_name:'Nom ?',email:'Email ?',phone:'Téléphone ?',linkedin:'URL profil public ?',location:'Ville ?',summary:'Lettre / message ?',salary:'Prétentions ?',website:'Site / portfolio ?'}[k]||(k+' ?');
+    var a=window.prompt('AscendOS · donnée manquante\\n'+q,'');
+    if(a!=null&&String(a).trim()){V[k]=String(a).trim(); if(k==='first_name'||k==='last_name'){V.full_name=((V.first_name||'')+' '+(V.last_name||'')).trim();}}
+  }
+});
+var filled=0, asked=0, map={
   first_name:V.first_name,last_name:V.last_name,full_name:V.full_name,email:V.email,phone:V.phone,
   linkedin:V.linkedin,location:V.location,headline:V.headline,summary:V.summary,resume_text:V.resume_text,
   salary:V.salary,website:V.website,country:V.country
@@ -302,10 +326,26 @@ Object.keys(map).forEach(function(canon){
   });
   if(best && bestS>=2 && set(best,map[canon])) filled++;
 });
-alert('AscendOS AutoFill: '+filled+' champ(s) remplis. Vérifie avant envoi — pas de mensonge auto.');
+nodes.forEach(function(el){
+  if(el.type==='hidden'||el.type==='file'||el.disabled) return;
+  if(el.value&&String(el.value).trim()) return;
+  if(!(el.required||el.getAttribute('aria-required')==='true')) return;
+  var lab=el.id?document.querySelector('label[for="'+el.id+'"]'):null;
+  var label=(lab&&lab.textContent)||el.placeholder||el.name||el.id||'Champ requis';
+  var a=window.prompt('AscendOS · champ requis vide sur cette page\\n'+String(label).trim().slice(0,80),'');
+  asked++;
+  if(a!=null&&String(a).trim()){ set(el,String(a).trim()); filled++; }
+});
+alert('AscendOS AutoFill: '+filled+' champ(s) · '+asked+' demande(s) interactive(s). Vérifie avant envoi — pas de submit auto.');
 })();`;
 
     return `javascript:${encodeURIComponent(code)}`;
+  }
+
+  /** Fields missing before opening a portal */
+  function gapReport(profile) {
+    if (typeof PublicEnrich !== "undefined") return PublicEnrich.missingForAutofill(profile);
+    return [];
   }
 
   function exportJson(fillPack) {
@@ -349,6 +389,7 @@ alert('AscendOS AutoFill: '+filled+' champ(s) remplis. Vérifie avant envoi — 
     exportCsv,
     portalChecklist,
     splitName,
+    gapReport,
   };
 })();
 

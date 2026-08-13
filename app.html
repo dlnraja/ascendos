@@ -3,6 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; worker-src 'self'"
+    />
     <title>AscendOS App</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,26 +24,42 @@
         AscendOS
       </a>
       <nav class="side-nav" aria-label="Navigation">
-        <a href="#dashboard" class="side-link active" data-view="dashboard">Dashboard</a>
-        <a href="#profile" class="side-link" data-view="profile">Profil Vault</a>
-        <a href="#accelerator" class="side-link" data-view="accelerator">Accélérateur</a>
-        <a href="#passerelles" class="side-link" data-view="passerelles">Passerelles &amp; leviers</a>
-        <a href="#ats" class="side-link" data-view="ats">ATS Match</a>
-        <a href="#cv" class="side-link" data-view="cv">CV Studio</a>
-        <a href="#linkedin" class="side-link" data-view="linkedin">LinkedIn Boost</a>
+        <a href="#cockpit" class="side-link active" data-view="cockpit">One-Click</a>
+        <a href="paths.html" class="side-link">Évolutions</a>
+        <a href="#job" class="side-link" data-view="job">Fiche offre</a>
+        <a href="#dashboard" class="side-link" data-view="dashboard">Vue rapide</a>
         <a href="#pipeline" class="side-link" data-view="pipeline">Pipeline</a>
         <a href="#apply" class="side-link" data-view="apply">Apply Queue</a>
-        <a href="#fresh" class="side-link" data-view="fresh">Radar frais (&lt;24h)</a>
-        <a href="#autofill" class="side-link" data-view="autofill">AutoFill CRM</a>
-        <a href="#emails" class="side-link" data-view="emails">Email Finder RH/CP</a>
-        <a href="#connectors" class="side-link" data-view="connectors">Connecteurs</a>
+        <details class="nav-group">
+          <summary>Atelier</summary>
+          <div class="nav-group-links">
+            <a href="#profile" class="side-link" data-view="profile">Profil</a>
+            <a href="#fresh" class="side-link" data-view="fresh">Radar frais</a>
+            <a href="#accelerator" class="side-link" data-view="accelerator">Accélérateur</a>
+            <a href="#passerelles" class="side-link" data-view="passerelles">Passerelles</a>
+            <a href="#ats" class="side-link" data-view="ats">ATS</a>
+            <a href="#cv" class="side-link" data-view="cv">CV</a>
+            <a href="#linkedin" class="side-link" data-view="linkedin">LinkedIn</a>
+            <a href="#autofill" class="side-link" data-view="autofill">AutoFill</a>
+            <a href="#emails" class="side-link" data-view="emails">Email Finder</a>
+            <a href="#connectors" class="side-link" data-view="connectors">Connecteurs</a>
+          </div>
+        </details>
       </nav>
+      <div class="session-bar" id="session-bar">
+        <span class="chip chip-info" id="session-chip">Local · aucune session</span>
+        <button class="btn btn-ghost btn-tiny" id="btn-session-out" type="button" hidden>Quitter session</button>
+      </div>
       <div style="margin-top: auto; display: grid; gap: 0.5rem">
+        <button class="btn btn-ghost" id="btn-vault-lock" type="button" title="Verrouille clés & tokens">Verrouiller</button>
         <button class="btn btn-soft" id="btn-export-json" type="button">Exporter JSON</button>
         <label class="btn btn-ghost" style="cursor: pointer">
           Importer JSON
           <input type="file" id="btn-import-json" accept="application/json,.json" hidden />
         </label>
+        <p class="side-disclaimer">
+          <a href="docs/DISCLAIMER.md" target="_blank" rel="noopener">Éducatif · ToS · pas de bypass</a>
+        </p>
       </div>
     </aside>
 
@@ -46,13 +67,63 @@
       <div class="topbar">
         <div>
           <button class="btn btn-ghost mobile-nav-toggle" id="mobile-nav-toggle" type="button">Menu</button>
-          <h1 id="view-title">Tableau de bord</h1>
-          <p id="view-sub">Priorise les offres qui accélèrent ta carrière.</p>
+          <h1 id="view-title">One-Click</h1>
+          <p id="view-sub">Un workflow. Un bouton. Le reste est dans l'Atelier.</p>
         </div>
       </div>
 
+      <!-- COCKPIT ONE-CLICK -->
+      <section class="view active" id="view-cockpit">
+        <div class="privacy-strip" role="note">
+          <strong>RGPD · zéro donnée chez AscendOS.</strong> L’éditeur du projet ne possède aucun compte ni base utilisateurs.
+          Tout reste dans <em>ton</em> navigateur. Quotas gratuits plafonnés automatiquement — jamais de dépassement vers du payant.
+          · <a href="docs/DISCLAIMER.md" target="_blank" rel="noopener">Avertissement usage / ToS</a>
+        </div>
+        <div class="panel disclaimer-banner" id="disclaimer-banner" hidden>
+          <p style="margin: 0 0 0.5rem">
+            <strong>Usage éducatif / expérimental.</strong> Tu es responsable du respect des ToS des sites et APIs.
+            Pas de contournement anti-bot ni scrape non autorisé — un label « fair use » ne rend pas ça légal.
+            <a href="docs/DISCLAIMER.md" target="_blank" rel="noopener">Lire l’avertissement</a>
+          </p>
+          <button class="btn btn-soft btn-tiny" type="button" id="btn-ack-disclaimer">J’ai compris</button>
+        </div>
+        <div class="cockpit">
+          <p class="section-kicker">Pilotage</p>
+          <h2 class="cockpit-title">Un bouton. Un workflow.</h2>
+          <p class="cockpit-lead">
+            Choisis une séquence — AscendOS enchaîne fraîcheur, levier carrière, file d'apply, AutoFill et outreach.
+            Les détails restent dans l'Atelier.
+          </p>
+
+          <div class="workflow-pick" id="wf-pick" role="listbox" aria-label="Workflows"></div>
+
+          <button class="btn btn-primary btn-oneclick" id="btn-oneclick" type="button">Lancer le sprint</button>
+
+          <div class="wf-progress" id="wf-progress" hidden>
+            <div class="wf-bar"><span id="wf-bar-fill"></span></div>
+            <ol id="wf-steps" class="wf-steps"></ol>
+            <div id="wf-log" class="wf-log"></div>
+            <div class="row-actions" id="wf-next-actions"></div>
+          </div>
+
+          <div class="cockpit-strip" id="cockpit-strip">
+            <div><strong id="ck-jobs">0</strong><span>offres</span></div>
+            <div><strong id="ck-prime">0</strong><span>PRIME</span></div>
+            <div><strong id="ck-queue">0</strong><span>en file</span></div>
+          </div>
+          <div class="weekly-strip" id="weekly-strip" aria-label="Rythme hebdo"></div>
+        </div>
+      </section>
+
+      <!-- JOB INTEL -->
+      <section class="view" id="view-job">
+        <div class="job-intel" id="job-intel">
+          <p style="color: var(--mist)">Sélectionne une offre (Pipeline, Radar, Accélérateur…) pour ouvrir la fiche intelligente.</p>
+        </div>
+      </section>
+
       <!-- DASHBOARD -->
-      <section class="view active" id="view-dashboard">
+      <section class="view" id="view-dashboard">
         <div class="grid-3" style="margin-bottom: 1rem">
           <div class="panel stat"><div class="value" id="stat-jobs">0</div><div class="label">Offres suivies</div></div>
           <div class="panel stat"><div class="value" id="stat-accel">0</div><div class="label">Accélérateurs (≥ seuil)</div></div>
@@ -108,12 +179,35 @@
             <div class="field"><label>Headline</label><input id="pf-headline" /></div>
             <div class="field"><label>Email</label><input id="pf-email" type="email" /></div>
             <div class="field"><label>Téléphone</label><input id="pf-phone" placeholder="+33…" /></div>
-            <div class="field"><label>Localisation</label><input id="pf-location" /></div>
+            <div class="field"><label>Localisation (base)</label><input id="pf-location" placeholder="ex: Paris, Lyon, Remote FR" /></div>
+            <div class="field">
+              <label>Modes de travail acceptés</label>
+              <p style="color: var(--mist); font-size: 0.82rem; margin: 0 0 0.5rem">
+                Coche ce que tu acceptes (présentiel, hybride, full remote…). Décoche les cas que tu refuses — le ranking des offres s’aligne dessus.
+              </p>
+              <div id="pf-work-modes" class="vector-picker"></div>
+            </div>
+            <div class="field">
+              <label>Zones / villes préférées (virgules)</label>
+              <input id="pf-work-zones" placeholder="ex: Paris, Lyon, Bordeaux — vide = pas de filtre zone" />
+            </div>
+            <div class="field">
+              <label>Zones à exclure (virgules, optionnel)</label>
+              <input id="pf-work-exclude" placeholder="ex: provinces trop loin, hors EU…" />
+            </div>
+            <div class="field">
+              <label>Notes mobilité</label>
+              <textarea id="pf-work-notes" placeholder="ex: hybride 2j max · pas de déménagement · remote FR only" style="min-height: 64px"></textarea>
+            </div>
+            <div class="row-actions" style="margin-bottom: 0.75rem">
+              <button class="btn btn-ghost" id="btn-ask-work-prefs" type="button">Poser les questions (interactif)</button>
+            </div>
             <div class="field"><label>Site / portfolio</label><input id="pf-website" placeholder="https://" /></div>
             <div class="field"><label>Prétentions (optionnel)</label><input id="pf-salary" placeholder="ex: 55-65k" /></div>
             <div class="field"><label>LinkedIn URL</label><input id="pf-linkedin" /></div>
             <div class="field"><label>Résumé</label><textarea id="pf-summary"></textarea></div>
             <div class="field"><label>Compétences (virgules)</label><input id="pf-skills" /></div>
+            <div class="field"><label>Diplômes / formations (une ligne = une entrée)</label><textarea id="pf-education" placeholder="Master … — École … — année"></textarea></div>
             <div class="field"><label>Objectif carrière</label><textarea id="pf-goal"></textarea></div>
             <div class="field">
               <label>Parcours actuel</label>
@@ -164,9 +258,9 @@
               <button class="btn btn-soft" id="btn-import-linkedin" type="button">Fusionner LinkedIn</button>
             </div>
             <div class="panel">
-              <h2>AI Vault — Gemini / Workspace / autres</h2>
+              <h2>AI Vault — import IA</h2>
               <p style="color: var(--mist); font-size: 0.9rem; margin-bottom: 0.75rem">
-                Demande à Gemini : « produis un JSON profil (headline, summary, skills, career_goal) » puis colle ici.
+                Demande à ton IA : « produis un JSON profil (headline, summary, skills, career_goal) » puis colle ici.
               </p>
               <div class="field">
                 <label>Export IA</label>
@@ -273,23 +367,84 @@
       <section class="view" id="view-cv">
         <div class="grid-2">
           <div class="panel">
-            <h2>CV orienté (tous métiers)</h2>
+            <h2>CV personnalisé par offre</h2>
             <p style="color: var(--mist); font-size: 0.9rem; margin-bottom: 0.75rem">
-              Utilise aussi <strong>Passerelles &amp; leviers</strong> pour un reframing LinkedIn → cible sans inventer.
+              Croise profil, vault, formations, prefs lieu et <strong>retours candidatures</strong> —
+              sans inventer d’expérience ni de chiffre.
             </p>
             <div class="field">
-              <label>Cible (ex. cadre de santé, head of sales, conducteur de travaux…)</label>
-              <input id="cv-target" placeholder="Direction visée — honnête" />
+              <label>Offre cible</label>
+              <select id="cv-job"></select>
             </div>
-            <button class="btn btn-primary" id="btn-boost-cv" type="button">Boost CV</button>
+            <div class="field">
+              <label>Cible libre (si pas d’offre)</label>
+              <input id="cv-target" placeholder="ex. Head of Sales — hybride Paris" />
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-primary" id="btn-tailor-cv" type="button">Générer CV offre</button>
+              <button class="btn btn-soft" id="btn-boost-cv" type="button">Boost générique</button>
+              <button class="btn btn-ghost" id="btn-cv-pdf" type="button">Éditer → PDF / Imprimer</button>
+            </div>
             <div class="field" style="margin-top: 1rem">
-              <label>Aperçu</label>
-              <textarea id="cv-preview" style="min-height: 220px"></textarea>
+              <label>Document (éditable)</label>
+              <textarea id="cv-preview" style="min-height: 260px"></textarea>
             </div>
+            <div class="field">
+              <label>Corriger en langage naturel</label>
+              <input id="cv-nl" placeholder="ex: retire « passionnément » · remplace X par Y · raccourcis · moins commercial · ajoute Python" />
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-soft" id="btn-cv-nl" type="button">Appliquer correction</button>
+              <button class="btn btn-ghost" id="btn-cv-scan" type="button">Scanner incohérences</button>
+            </div>
+            <ul id="cv-honesty" class="list-gaps" style="margin-top: 0.75rem"></ul>
+            <ul id="cv-issues" class="list-gaps"></ul>
           </div>
-          <div class="panel">
-            <h2>Versions</h2>
-            <div id="cv-list"></div>
+          <div>
+            <div class="panel" style="margin-bottom: 1rem">
+              <h2>Lettre de motivation</h2>
+              <div class="field"><label>Offre</label><select id="letter-job"></select></div>
+              <div class="row-actions">
+                <button class="btn btn-primary" id="btn-gen-letter" type="button">Générer lettre</button>
+                <button class="btn btn-ghost" id="btn-copy-letter" type="button">Copier</button>
+              </div>
+              <div class="field" style="margin-top: 0.75rem">
+                <label>Lettre (éditable)</label>
+                <textarea id="letter-preview" style="min-height: 180px"></textarea>
+              </div>
+              <div class="field">
+                <label>Corriger en langage naturel</label>
+                <input id="letter-nl" placeholder="ex: plus factuel · retire la phrase sur…" />
+              </div>
+              <button class="btn btn-soft" id="btn-letter-nl" type="button">Appliquer correction</button>
+            </div>
+            <div class="panel" style="margin-bottom: 1rem">
+              <h2>Mémoire candidatures</h2>
+              <p style="color: var(--mist); font-size: 0.85rem">
+                Retours, mails, refus, entretiens — réinjectés dans CV / lettres suivantes.
+              </p>
+              <div class="field"><label>Offre liée</label><select id="mem-job"></select></div>
+              <div class="field">
+                <label>Résultat</label>
+                <select id="mem-outcome">
+                  <option value="note">Note</option>
+                  <option value="sent">Envoyé</option>
+                  <option value="reply">Réponse reçue</option>
+                  <option value="interview">Entretien</option>
+                  <option value="offer">Offre</option>
+                  <option value="reject">Refus</option>
+                  <option value="ghost">Sans réponse</option>
+                </select>
+              </div>
+              <div class="field"><label>Leçon / point clé</label><input id="mem-lesson" placeholder="ex: trop générique sur le stack" /></div>
+              <div class="field"><label>Extrait mail / retour</label><textarea id="mem-email" style="min-height: 70px" placeholder="Colle un extrait (local only)"></textarea></div>
+              <button class="btn btn-primary" id="btn-mem-add" type="button">Enregistrer retour</button>
+              <div id="mem-list" style="margin-top: 0.75rem"></div>
+            </div>
+            <div class="panel">
+              <h2>Versions CV</h2>
+              <div id="cv-list"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -313,12 +468,15 @@
       <section class="view" id="view-apply">
         <div class="panel" style="margin-bottom: 1rem">
           <p style="color: var(--mist)">
-            Pas d'auto-spam : tu revues chaque candidature. File triée pour postuler d'abord sur les offres
-            <strong>PRIME (&lt;1h)</strong> à fort levier. Envoie aussi un mail direct RH/CP (Email Finder) en plus du CRM ATS.
+            Pas d'auto-spam : tu revues chaque candidature. <strong>Batch</strong> et <strong>Loop</strong> préparent packs + onglets ;
+            le bookmarklet remplit le formulaire RH — et te demande interactivement ce qui manque.
           </p>
           <div class="row-actions">
             <button class="btn btn-soft" id="btn-sort-queue-fresh" type="button">Trier file : frais d'abord</button>
+            <button class="btn btn-primary" id="btn-batch-apply" type="button">Batch Apply (file)</button>
+            <button class="btn btn-soft" id="btn-loop-apply" type="button">Loop Apply ×2</button>
           </div>
+          <div id="batch-log" class="wf-log" style="margin-top: 0.75rem"></div>
         </div>
         <div id="apply-list"></div>
       </section>
@@ -393,11 +551,13 @@
         <div class="panel" style="margin-bottom: 1rem">
           <h2>AutoFill CRM &amp; portails carrière</h2>
           <p style="color: var(--mist)">
-            Remplit automatiquement les formulaires des ATS / sites boîte à partir de ton
-            <strong>LinkedIn</strong> + <strong>profil IA Workspace / Gemini</strong> (AI Vault).
-            Sur GitHub Pages on ne peut pas injecter depuis notre site : utilise le
-            <strong>bookmarklet</strong> sur la page de candidature, ou exporte le pack JSON.
+            Remplit les formulaires ATS / sites RH via <strong>bookmarklet</strong> (sur la page candidature).
+            Champs manquants → questions interactives. Enrichissement = <em>tes</em> sources publiques / Workspace uniquement.
           </p>
+          <div class="privacy-strip" style="margin-top: 0.85rem">
+            <strong>Éthique.</strong> Pas de submit auto, pas de contournement anti-bot, pas d’OSINT sur des tiers —
+            uniquement ton profil, tes exports Workspace, et des pages/jeux de données publics te concernant.
+          </div>
         </div>
         <div class="grid-2">
           <div class="panel">
@@ -412,18 +572,20 @@
             </div>
             <div class="field">
               <label>URL de la page candidature (optionnel)</label>
-              <input id="af-url" placeholder="https://boards.greenhouse.io/..." />
+              <input id="af-url" placeholder="https://boards…/jobs/…" />
             </div>
             <div class="row-actions">
               <button class="btn btn-primary" id="btn-af-build" type="button">Générer pack AutoFill</button>
               <button class="btn btn-soft" id="btn-af-detect" type="button">Détecter portail</button>
+              <button class="btn btn-ghost" id="btn-af-ask-gaps" type="button">Compléter gaps (interactif)</button>
             </div>
             <p id="af-status" style="color: var(--mist); font-size: 0.85rem; margin-top: 0.75rem"></p>
+            <div id="af-gaps" style="margin-top: 0.65rem"></div>
           </div>
           <div class="panel">
             <h3>2. Remplir le portail</h3>
             <p style="color: var(--mist); font-size: 0.9rem">
-              Glisse ce lien dans ta barre de favoris, ouvre la page CRM/ATS, puis clique le favori.
+              Favori bookmarklet → page CRM/ATS → clic. Les champs requis vides te seront demandés.
             </p>
             <p style="margin: 0.75rem 0">
               <a class="btn btn-primary" id="af-bookmarklet" href="#">AscendOS AutoFill</a>
@@ -437,11 +599,27 @@
           </div>
         </div>
         <div class="panel" style="margin-top: 1rem">
+          <h3>3. Enrichir depuis le public / Workspace</h3>
+          <p style="color: var(--mist); font-size: 0.9rem">
+            Ouvre tes sources (profil public, Docs, HAL, ORCID, data.gouv…) puis colle le texte utile.
+          </p>
+          <div id="enrich-links" class="vector-legend" style="margin: 0.65rem 0"></div>
+          <div class="row-actions">
+            <button class="btn btn-soft" id="btn-enrich-wikidata" type="button">Hints Wikidata (public)</button>
+            <button class="btn btn-ghost" id="btn-enrich-edu-paste" type="button">Parser diplômes (collage)</button>
+          </div>
+          <div class="field" style="margin-top: 0.75rem">
+            <label>Coller extrait public / export Workspace / diplômes</label>
+            <textarea id="enrich-paste" placeholder="Master …&#10;École …&#10;ou export Docs / profil public" style="min-height: 100px"></textarea>
+          </div>
+          <div id="enrich-hits" style="margin-top: 0.65rem"></div>
+        </div>
+        <div class="panel" style="margin-top: 1rem">
           <h3>Portails supportés (heuristiques)</h3>
           <div id="af-portals" class="feature-rail" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr))"></div>
         </div>
         <div class="panel" style="margin-top: 1rem">
-          <h3>Aperçu des valeurs (LinkedIn + IA)</h3>
+          <h3>Aperçu des valeurs</h3>
           <pre id="af-preview" style="white-space: pre-wrap; color: var(--mist); font-size: 0.82rem; margin: 0; max-height: 320px; overflow: auto"></pre>
         </div>
       </section>
@@ -449,11 +627,10 @@
       <!-- EMAIL FINDER -->
       <section class="view" id="view-emails">
         <div class="panel" style="margin-bottom: 1rem">
-          <h2>Email Finder intelligent (style Hunter / permutator)</h2>
+          <h2>Email Finder intelligent</h2>
           <p style="color: var(--mist)">
-            Inspiré des outils gratuits (Hunter 50/mois, Apollo crédits, permutators) :
-            cartes de visite / vCard / signatures commerciaux → nomenclature → candidats email.
-            MX check DNS gratuit. Clé Hunter optionnelle pour enrichir.
+            Cartes de visite / vCard / signatures FR → nomenclature → candidats.
+            <strong>Tout marche sans clé</strong> (permutator + MX DoH). Hunter / Under IA = optionnels (coffre).
           </p>
           <div id="ef-free-tools" class="vector-legend" style="margin-top: 0.65rem"></div>
         </div>
@@ -513,8 +690,8 @@
               </select>
             </div>
             <div class="row-actions">
-              <button class="btn btn-primary" id="btn-guess-emails" type="button">Permutator</button>
-              <button class="btn btn-soft" id="btn-hunter-find" type="button">Hunter (clé)</button>
+              <button class="btn btn-primary" id="btn-guess-emails" type="button">Permutator local</button>
+              <button class="btn btn-soft" id="btn-hunter-find" type="button">Enrichir (APIs optionnelles)</button>
               <button class="btn btn-ghost" id="btn-check-mx" type="button">Check MX</button>
               <button class="btn btn-ghost" id="btn-guess-domain" type="button">Deviner domaine</button>
             </div>
@@ -524,6 +701,12 @@
 
         <div class="panel" style="margin-top: 1rem">
           <h2>Emails candidats</h2>
+          <div class="row-actions" style="margin-bottom: 0.65rem">
+            <button class="btn btn-soft" id="btn-ef-export-csv" type="button">Exporter CSV</button>
+            <button class="btn btn-soft" id="btn-ef-export-json" type="button">Exporter JSON complet</button>
+            <button class="btn btn-ghost" id="btn-ef-export-patterns" type="button">Catalogue patterns</button>
+            <button class="btn btn-ghost" id="btn-ef-copy-all" type="button">Copier tous les emails</button>
+          </div>
           <div id="ef-candidates"><p style="color: var(--mist)">Aucun pour l'instant.</p></div>
         </div>
 
@@ -535,99 +718,205 @@
 
       <!-- CONNECTORS -->
       <section class="view" id="view-connectors">
-        <div class="grid-2">
-          <div class="panel connector">
-            <h2>Gmail</h2>
-            <div class="connector-status">
-              <span class="chip chip-info" id="gmail-status">—</span>
+        <div class="panel session-panel">
+          <p class="section-kicker">Session</p>
+          <h2>Compte optionnel — toujours local</h2>
+          <p class="magic-lead">
+            AscendOS <strong>n’envoie rien</strong> à un serveur AscendOS.
+            <strong>Tout fonctionne sans connecteur ni clé</strong> (stack locale).
+            Les connecteurs ne font qu’améliorer le chemin quand tu en as.
+          </p>
+          <div class="connector-status-row">
+            <span class="chip chip-info" id="session-status">—</span>
+          </div>
+          <div class="row-actions" style="margin-top: 0.85rem">
+            <button class="btn btn-primary" id="btn-session-google" type="button">Session Google (OAuth)</button>
+            <button class="btn btn-soft" id="btn-session-linkedin" type="button">Lier LinkedIn (local / OAuth)</button>
+            <button class="btn btn-ghost" id="btn-session-signout" type="button">Quitter la session</button>
+          </div>
+          <p style="color: var(--mist); font-size: 0.82rem; margin: 0.75rem 0 0">
+            Google / LinkedIn : OAuth depuis ton navigateur uniquement. JWT de session local (HS256) —
+            <strong>aucun compte AscendOS central</strong>.
+          </p>
+          <div class="panel" style="margin-top: 1rem; padding: 0.85rem; background: transparent; border: 1px solid var(--line, #333)">
+            <h3 style="margin-top: 0">Login anti-piratage (local)</h3>
+            <p style="color: var(--mist); font-size: 0.85rem">
+              Mot de passe → chiffrement des données appareil + JWT session. À la fermeture / verrouillage, le store est scellé.
+            </p>
+            <div class="field"><label>Mot de passe (min. 8)</label><input id="auth-pass" type="password" autocomplete="new-password" /></div>
+            <div class="row-actions">
+              <button class="btn btn-primary" id="btn-auth-enable" type="button">Activer login + sceller</button>
+              <button class="btn btn-soft" id="btn-auth-lock" type="button">Verrouiller session</button>
+              <button class="btn btn-ghost" id="btn-auth-disable" type="button">Désactiver login</button>
+            </div>
+            <span class="chip chip-info" id="auth-status">—</span>
+          </div>
+          <div id="quota-status" class="quota-status" aria-live="polite"></div>
+        </div>
+
+        <div class="panel vault-panel" id="vault-panel" style="margin-top: 1rem">
+          <p class="section-kicker">Coffre</p>
+          <h2>Sécurité des clés &amp; tokens</h2>
+          <p class="magic-lead">
+            API keys et tokens sont chiffrés (AES-GCM) — jamais en clair dans localStorage.
+            Mode appareil par défaut ; active une passphrase pour magic links chiffrés et auto-lock.
+          </p>
+          <div class="connector-status-row" id="vault-status-row">
+            <span class="chip chip-info" id="vault-status">—</span>
+          </div>
+          <div class="grid-2" style="margin-top: 0.85rem">
+            <div class="field">
+              <label>Passphrase (min. 8)</label>
+              <input id="vault-pass" type="password" autocomplete="new-password" placeholder="••••••••" />
             </div>
             <div class="field">
-              <label>Google OAuth Client ID</label>
-              <input id="gmail-client-id" placeholder="xxxxx.apps.googleusercontent.com" />
+              <label>Confirmer / déverrouiller</label>
+              <input id="vault-pass2" type="password" autocomplete="current-password" placeholder="••••••••" />
             </div>
-            <div class="row-actions">
-              <button class="btn btn-soft" id="btn-connect-gmail" type="button">Connecter Gmail</button>
-            </div>
-            <p style="color: var(--mist); font-size: 0.85rem">
-              Sans backend, on utilise un token implicite court + mailto. Voir docs/CONNECTORS.md.
-            </p>
           </div>
-          <div class="panel connector">
-            <h2>LinkedIn</h2>
-            <div class="connector-status">
-              <span class="chip chip-info" id="linkedin-status">—</span>
+          <div class="row-actions">
+            <button class="btn btn-primary" id="btn-vault-enable" type="button">Activer passphrase</button>
+            <button class="btn btn-soft" id="btn-vault-unlock" type="button">Déverrouiller</button>
+            <button class="btn btn-ghost" id="btn-vault-lock-inline" type="button">Verrouiller</button>
+            <button class="btn btn-ghost" id="btn-vault-wipe" type="button">Effacer secrets</button>
+          </div>
+        </div>
+
+        <div class="panel magic-panel" style="margin-top: 1rem">
+          <p class="section-kicker">Magic link</p>
+          <h2>Un lien pour tout brancher</h2>
+          <p class="magic-lead">
+            Préfère un magic link <strong>chiffré</strong> (passphrase). Les liens v1 en clair sont refusés à la copie
+            une fois la passphrase active.
+          </p>
+          <div class="field">
+            <label>Coller un magic link</label>
+            <input id="magic-link-input" placeholder="https://…/app.html#ml.… ou ml.…" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>Passphrase du lien (si chiffré)</label>
+            <input id="magic-link-pass" type="password" autocomplete="off" placeholder="si magic link v2" />
+          </div>
+          <div class="row-actions">
+            <button class="btn btn-primary" id="btn-magic-apply" type="button">Appliquer le lien</button>
+            <button class="btn btn-soft" id="btn-magic-copy" type="button">Copier magic link chiffré</button>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top: 1rem">
+          <p class="section-kicker">One-click</p>
+          <h2>Boutons / deep links</h2>
+          <p style="color: var(--mist); font-size: 0.9rem; margin-top: 0">
+            Un clic = ouvrir le service ou lancer OAuth si le Client ID est déjà là (via magic link).
+          </p>
+          <div class="oneclick-grid" id="oneclick-grid"></div>
+          <div class="connector-status-row">
+            <span class="chip chip-info" id="gmail-status">—</span>
+            <span class="chip chip-info" id="linkedin-status">—</span>
+            <span class="chip chip-info" id="gemini-last-chip">IA : —</span>
+          </div>
+          <div id="local-stack-caps" class="vector-legend" style="margin-top: 0.85rem"></div>
+        </div>
+
+        <details class="panel connector-advanced" style="margin-top: 1rem">
+          <summary>Réglages avancés (Client IDs &amp; clés)</summary>
+          <div class="grid-2" style="margin-top: 1rem">
+            <div class="field">
+              <label>Google OAuth Client ID</label>
+              <input id="gmail-client-id" placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" />
             </div>
             <div class="field">
               <label>LinkedIn Client ID</label>
-              <input id="linkedin-client-id" placeholder="Client ID app LinkedIn" />
+              <input id="linkedin-client-id" placeholder="Client ID app LinkedIn" autocomplete="off" />
             </div>
-            <div class="row-actions">
-              <button class="btn btn-soft" id="btn-connect-linkedin" type="button">OAuth LinkedIn</button>
+            <div class="field">
+              <label>URL API agrégateur</label>
+              <input id="aggregate-api-base" placeholder="https://….workers.dev" autocomplete="off" />
             </div>
-            <p style="color: var(--mist); font-size: 0.85rem">
-              L'API LinkedIn est limitée : l'import par collage reste le plus fiable.
-            </p>
-          </div>
-        </div>
-        <div class="panel" style="margin-top: 1rem">
-          <h2>API agrégateur (si GitHub Pages ne suffit pas)</h2>
-          <p style="color: var(--mist); font-size: 0.9rem">
-            Cloudflare Workers, Vercel Hobby ou Oracle Always Free — voir
-            <a href="docs/FREE_HOSTING.md">docs/FREE_HOSTING.md</a>
-          </p>
-          <div class="field">
-            <label>URL de base (sans slash final)</label>
-            <input id="aggregate-api-base" placeholder="https://ascendos-aggregate.xxx.workers.dev" />
-          </div>
-          <div class="field">
-            <label>Hunter.io API key (free 50/mois)</label>
-            <input id="hunter-api-key" type="password" placeholder="hunter api key" autocomplete="off" />
-          </div>
-        </div>
-        <div class="panel" style="margin-top: 1rem">
-          <h2>Clés API freemium (optionnel)</h2>
-          <div class="grid-2">
+            <div class="field">
+              <label>Hunter.io API key (optionnel)</label>
+              <input id="hunter-api-key" type="password" placeholder="clé Hunter — non requise" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label>Under IA — URL base (optionnel)</label>
+              <input id="under-ia-base" placeholder="https://api.exemple/email-finder" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label>Under IA — clé (optionnel)</label>
+              <input id="under-ia-key" type="password" placeholder="clé Under IA — non requise" autocomplete="off" />
+            </div>
             <div class="field">
               <label>Adzuna APP_ID</label>
-              <input id="adzuna-app-id" placeholder="app_id" />
+              <input id="adzuna-app-id" placeholder="app_id" autocomplete="off" />
             </div>
             <div class="field">
               <label>Adzuna APP_KEY</label>
-              <input id="adzuna-app-key" placeholder="app_key" />
+              <input id="adzuna-app-key" type="password" placeholder="app_key" autocomplete="off" />
             </div>
           </div>
           <p style="color: var(--mist); font-size: 0.85rem">
-            Stocké localement. Active la source Adzuna dans Radar frais. Respecte le free tier.
+            Sauver écrit dans le <strong>coffre chiffré</strong> uniquement.
+            Guide : <a href="docs/SECURITY.md">docs/SECURITY.md</a> ·
+            <a href="docs/CONNECTORS.md">CONNECTORS.md</a>
           </p>
-        </div>
-        <div class="panel" style="margin-top: 1rem">
-          <h2>Gemini / Google Workspace</h2>
-          <p style="color: var(--mist)">
-            Dernier import IA :
-            <strong id="gemini-last">Jamais</strong>
-            — utilise l'onglet Profil Vault → AI Vault.
-          </p>
-          <div class="row-actions" style="margin-top: 0.75rem">
-            <button class="btn btn-primary" id="btn-save-connectors" type="button">Sauver Client IDs</button>
-            <a class="btn btn-ghost" href="docs/CONNECTORS.md">Guide connecteurs</a>
+          <div class="row-actions">
+            <button class="btn btn-primary" id="btn-save-connectors" type="button">Sauver dans le coffre</button>
+            <button class="btn btn-soft" id="btn-connect-gmail" type="button">OAuth Gmail</button>
+            <button class="btn btn-soft" id="btn-connect-linkedin" type="button">OAuth LinkedIn</button>
+            <button class="btn btn-ghost" id="btn-clear-oauth" type="button">Révoquer token session</button>
           </div>
-        </div>
+          <span id="gemini-last" hidden>Jamais</span>
+        </details>
       </section>
     </div>
 
     <div class="toast" id="toast" role="status"></div>
 
+    <div id="auth-gate" class="auth-gate" hidden>
+      <div class="auth-card">
+        <p class="section-kicker">AscendOS</p>
+        <h1>Session verrouillée</h1>
+        <p>Mot de passe local, JWT appareil, ou OAuth Google / LinkedIn. Rien n’est envoyé à un serveur AscendOS.</p>
+        <div class="field"><label>Mot de passe</label><input id="gate-pass" type="password" autocomplete="current-password" /></div>
+        <div class="row-actions">
+          <button class="btn btn-primary" id="btn-gate-login" type="button">Déverrouiller</button>
+          <button class="btn btn-soft" id="btn-gate-google" type="button">Google OAuth</button>
+          <button class="btn btn-ghost" id="btn-gate-linkedin" type="button">LinkedIn local</button>
+        </div>
+        <p id="gate-err" class="gate-err" hidden></p>
+      </div>
+    </div>
+
+    <script src="assets/js/security.js"></script>
+    <script src="assets/js/auth-gate.js"></script>
+    <script src="assets/js/quotas.js"></script>
+    <script src="assets/js/session.js"></script>
     <script src="assets/js/store.js"></script>
+    <script src="assets/js/resilience.js"></script>
     <script src="assets/js/passerelles.js"></script>
     <script src="assets/js/career-vectors.js"></script>
+    <script src="assets/js/work-prefs.js"></script>
     <script src="assets/js/accelerator.js"></script>
     <script src="assets/js/ats.js"></script>
+    <script src="assets/js/comp-signal.js"></script>
+    <script src="assets/js/readiness.js"></script>
+    <script src="assets/js/cover-letter.js"></script>
+    <script src="assets/js/cv-tailor.js"></script>
+    <script src="assets/js/doc-revise.js"></script>
+    <script src="assets/js/apply-memory.js"></script>
+    <script src="assets/js/interview-prep.js"></script>
+    <script src="assets/js/weekly-plan.js"></script>
     <script src="assets/js/importer.js"></script>
     <script src="assets/js/email-finder.js"></script>
     <script src="assets/js/freshness.js"></script>
     <script src="assets/js/job-sources.js"></script>
     <script src="assets/js/autofill.js"></script>
+    <script src="assets/js/enrich.js"></script>
+    <script src="assets/js/batch-apply.js"></script>
+    <script src="assets/js/local-stack.js"></script>
+    <script src="assets/js/gmail-send.js"></script>
     <script src="assets/js/connectors.js"></script>
+    <script src="assets/js/workflows.js"></script>
     <script src="assets/js/app.js"></script>
   </body>
 </html>
