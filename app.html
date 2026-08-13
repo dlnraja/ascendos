@@ -29,6 +29,7 @@
         <a href="#pipeline" class="side-link" data-view="pipeline">Pipeline</a>
         <a href="#apply" class="side-link" data-view="apply">Apply Queue</a>
         <a href="#fresh" class="side-link" data-view="fresh">Radar frais (&lt;24h)</a>
+        <a href="#autofill" class="side-link" data-view="autofill">AutoFill CRM</a>
         <a href="#emails" class="side-link" data-view="emails">Email Finder RH/CP</a>
         <a href="#connectors" class="side-link" data-view="connectors">Connecteurs</a>
       </nav>
@@ -106,7 +107,10 @@
             <div class="field"><label>Nom</label><input id="pf-name" /></div>
             <div class="field"><label>Headline</label><input id="pf-headline" /></div>
             <div class="field"><label>Email</label><input id="pf-email" type="email" /></div>
+            <div class="field"><label>Téléphone</label><input id="pf-phone" placeholder="+33…" /></div>
             <div class="field"><label>Localisation</label><input id="pf-location" /></div>
+            <div class="field"><label>Site / portfolio</label><input id="pf-website" placeholder="https://" /></div>
+            <div class="field"><label>Prétentions (optionnel)</label><input id="pf-salary" placeholder="ex: 55-65k" /></div>
             <div class="field"><label>LinkedIn URL</label><input id="pf-linkedin" /></div>
             <div class="field"><label>Résumé</label><textarea id="pf-summary"></textarea></div>
             <div class="field"><label>Compétences (virgules)</label><input id="pf-skills" /></div>
@@ -370,6 +374,64 @@
         </div>
       </section>
 
+      <!-- AUTOFILL -->
+      <section class="view" id="view-autofill">
+        <div class="panel" style="margin-bottom: 1rem">
+          <h2>AutoFill CRM &amp; portails carrière</h2>
+          <p style="color: var(--mist)">
+            Remplit automatiquement les formulaires des ATS / sites boîte à partir de ton
+            <strong>LinkedIn</strong> + <strong>profil IA Workspace / Gemini</strong> (AI Vault).
+            Sur GitHub Pages on ne peut pas injecter depuis notre site : utilise le
+            <strong>bookmarklet</strong> sur la page de candidature, ou exporte le pack JSON.
+          </p>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <h3>1. Préparer le pack</h3>
+            <div class="field">
+              <label>Offre liée (lettre / contexte)</label>
+              <select id="af-job"></select>
+            </div>
+            <div class="field">
+              <label>Portail détecté / forcé</label>
+              <select id="af-portal"></select>
+            </div>
+            <div class="field">
+              <label>URL de la page candidature (optionnel)</label>
+              <input id="af-url" placeholder="https://boards.greenhouse.io/..." />
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-primary" id="btn-af-build" type="button">Générer pack AutoFill</button>
+              <button class="btn btn-soft" id="btn-af-detect" type="button">Détecter portail</button>
+            </div>
+            <p id="af-status" style="color: var(--mist); font-size: 0.85rem; margin-top: 0.75rem"></p>
+          </div>
+          <div class="panel">
+            <h3>2. Remplir le portail</h3>
+            <p style="color: var(--mist); font-size: 0.9rem">
+              Glisse ce lien dans ta barre de favoris, ouvre la page CRM/ATS, puis clique le favori.
+            </p>
+            <p style="margin: 0.75rem 0">
+              <a class="btn btn-primary" id="af-bookmarklet" href="#">AscendOS AutoFill</a>
+            </p>
+            <div class="row-actions">
+              <button class="btn btn-ghost" id="btn-af-copy-json" type="button">Copier JSON</button>
+              <button class="btn btn-ghost" id="btn-af-download-json" type="button">Télécharger JSON</button>
+              <button class="btn btn-ghost" id="btn-af-copy-csv" type="button">Copier CSV</button>
+            </div>
+            <div id="af-checklist" style="margin-top: 0.85rem"></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top: 1rem">
+          <h3>Portails supportés (heuristiques)</h3>
+          <div id="af-portals" class="feature-rail" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr))"></div>
+        </div>
+        <div class="panel" style="margin-top: 1rem">
+          <h3>Aperçu des valeurs (LinkedIn + IA)</h3>
+          <pre id="af-preview" style="white-space: pre-wrap; color: var(--mist); font-size: 0.82rem; margin: 0; max-height: 320px; overflow: auto"></pre>
+        </div>
+      </section>
+
       <!-- EMAIL FINDER -->
       <section class="view" id="view-emails">
         <div class="panel" style="margin-bottom: 1rem">
@@ -509,6 +571,7 @@
     <script src="assets/js/importer.js"></script>
     <script src="assets/js/email-finder.js"></script>
     <script src="assets/js/freshness.js"></script>
+    <script src="assets/js/autofill.js"></script>
     <script src="assets/js/connectors.js"></script>
     <script src="assets/js/app.js"></script>
   </body>

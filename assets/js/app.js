@@ -108,6 +108,7 @@
       pipeline: ["Pipeline", "Tracker type Teal — du saved à l'offre."],
       apply: ["Apply Queue", "File FastApply — frais + fort levier d'abord."],
       fresh: ["Radar frais", "Offres <1h / <24h — sois le premier à postuler."],
+      autofill: ["AutoFill CRM", "Remplit ATS / portails depuis LinkedIn + profil IA."],
       emails: ["Email Finder RH/CP", "Nomenclatures + LinkedIn → mails en plus du CRM ATS."],
       connectors: ["Connecteurs", "Gmail, LinkedIn, Gemini / Workspace."],
     };
@@ -165,7 +166,10 @@
     $("#pf-name").value = p.fullName || "";
     $("#pf-headline").value = p.headline || "";
     $("#pf-email").value = p.email || "";
+    if ($("#pf-phone")) $("#pf-phone").value = p.phone || "";
     $("#pf-location").value = p.location || "";
+    if ($("#pf-website")) $("#pf-website").value = p.website || "";
+    if ($("#pf-salary")) $("#pf-salary").value = p.salaryExpectation || "";
     $("#pf-summary").value = p.summary || "";
     $("#pf-skills").value = (p.skills || []).join(", ");
     $("#pf-goal").value = p.careerGoal || "";
@@ -207,7 +211,10 @@
     state.profile.fullName = $("#pf-name").value.trim();
     state.profile.headline = $("#pf-headline").value.trim();
     state.profile.email = $("#pf-email").value.trim();
+    if ($("#pf-phone")) state.profile.phone = $("#pf-phone").value.trim();
     state.profile.location = $("#pf-location").value.trim();
+    if ($("#pf-website")) state.profile.website = $("#pf-website").value.trim();
+    if ($("#pf-salary")) state.profile.salaryExpectation = $("#pf-salary").value.trim();
     state.profile.summary = $("#pf-summary").value.trim();
     state.profile.skills = $("#pf-skills").value
       .split(/,/)
@@ -589,6 +596,7 @@
           ${contactBlock}
           <div class="row-actions">
             <button class="btn btn-primary" data-act="mailto" data-qid="${item.id}">Outreach générique</button>
+            <button class="btn btn-soft" data-act="autofill" data-qid="${item.id}">Pack AutoFill CRM</button>
             <button class="btn btn-ghost" data-act="done" data-qid="${item.id}">Marquer envoyé</button>
             <button class="btn btn-danger" data-act="drop" data-qid="${item.id}">Retirer</button>
           </div>
@@ -597,7 +605,88 @@
       .join("");
   }
 
+  let lastFillPack = null;
   let lastEmailCandidates = [];
+
+  function renderAutofill() {
+    if (!$("#af-portal")) return;
+    const jobSel = $("#af-job");
+    const prev = jobSel?.value;
+    if (jobSel) {
+      jobSel.innerHTML =
+        `<option value="">— profil seul —</option>` +
+        state.jobs
+          .map((j) => `<option value="${j.id}">${escapeHtml(j.title)} · ${escapeHtml(j.company)}</option>`)
+          .join("");
+      if (prev) jobSel.value = prev;
+    }
+    const portalSel = $("#af-portal");
+    if (portalSel && !portalSel.options.length) {
+      portalSel.innerHTML = AutoFill.PORTALS.map(
+        (p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`
+      ).join("");
+    } else if (portalSel && portalSel.options.length === 0) {
+      portalSel.innerHTML = AutoFill.PORTALS.map(
+        (p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`
+      ).join("");
+    }
+    // Always refresh portal list once
+    if (portalSel && portalSel.dataset.ready !== "1") {
+      portalSel.innerHTML = AutoFill.PORTALS.map(
+        (p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`
+      ).join("");
+      portalSel.dataset.ready = "1";
+    }
+
+    $("#af-portals").innerHTML = AutoFill.PORTALS.filter((p) => p.id !== "generic")
+      .map(
+        (p) => `<article class="feature" style="min-height:auto;padding:0.85rem">
+          <h3 style="font-size:1rem">${escapeHtml(p.label)}</h3>
+          <p>${escapeHtml(p.notes)}</p>
+        </article>`
+      )
+      .join("");
+
+    if (lastFillPack) {
+      $("#af-preview").textContent = AutoFill.exportJson(lastFillPack);
+      const portalId = $("#af-portal")?.value || "generic";
+      $("#af-checklist").innerHTML =
+        `<ul class="list-gaps">` +
+        AutoFill.portalChecklist(portalId, lastFillPack)
+          .map((c) => `<li>${escapeHtml(c)}</li>`)
+          .join("") +
+        `</ul>`;
+      const bm = $("#af-bookmarklet");
+      if (bm) {
+        bm.href = AutoFill.buildBookmarklet(lastFillPack);
+        bm.onclick = (e) => {
+          e.preventDefault();
+          toast("Glisse ce bouton dans tes favoris, puis clique-le sur la page ATS");
+        };
+      }
+    } else {
+      $("#af-preview").textContent =
+        "Clique « Générer pack AutoFill » — données LinkedIn + AI Vault fusionnées.";
+    }
+  }
+
+  function buildAutofillPack(jobId) {
+    const job = jobId ? state.jobs.find((j) => j.id === jobId) : state.jobs.find((j) => j.id === $("#af-job")?.value);
+    const pack = AutoFill.buildFillPack(state.profile, job || null);
+    lastFillPack = pack;
+    state.lastFillPack = pack;
+    persist();
+    const portal = AutoFill.detectPortal($("#af-url")?.value || job?.url || "");
+    if ($("#af-portal")) $("#af-portal").value = portal.id;
+    if ($("#af-status")) {
+      $("#af-status").textContent = `Pack prêt · IA vault: ${
+        pack.aiProvenance.aiVault ? "oui" : "non"
+      } · LinkedIn: ${pack.aiProvenance.linkedin ? "oui" : "non"} · portail: ${portal.label}`;
+    }
+    renderAutofill();
+    toast("Pack AutoFill généré");
+    return pack;
+  }
 
   function fillEmailJobSelect() {
     const sel = $("#ef-job");
@@ -1050,6 +1139,7 @@
     renderPipeline();
     renderApplyQueue();
     renderFresh();
+    renderAutofill();
     renderEmailFinder();
     renderConnectors();
   }
@@ -1076,6 +1166,30 @@
     $("#btn-fetch-fresh")?.addEventListener("click", fetchFreshJobs);
     $("#btn-queue-all-prime")?.addEventListener("click", queueAllPrime);
     $("#btn-save-fresh-settings")?.addEventListener("click", saveFreshSettings);
+    $("#btn-af-build")?.addEventListener("click", () => buildAutofillPack());
+    $("#btn-af-detect")?.addEventListener("click", () => {
+      const p = AutoFill.detectPortal($("#af-url")?.value || "");
+      if ($("#af-portal")) $("#af-portal").value = p.id;
+      toast(`Portail: ${p.label}`);
+    });
+    $("#btn-af-copy-json")?.addEventListener("click", async () => {
+      if (!lastFillPack) buildAutofillPack();
+      await navigator.clipboard.writeText(AutoFill.exportJson(lastFillPack));
+      toast("JSON AutoFill copié");
+    });
+    $("#btn-af-download-json")?.addEventListener("click", () => {
+      if (!lastFillPack) buildAutofillPack();
+      const blob = new Blob([AutoFill.exportJson(lastFillPack)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "ascendos-autofill.json";
+      a.click();
+    });
+    $("#btn-af-copy-csv")?.addEventListener("click", async () => {
+      if (!lastFillPack) buildAutofillPack();
+      await navigator.clipboard.writeText(AutoFill.exportCsv(lastFillPack));
+      toast("CSV AutoFill copié");
+    });
 
     $("#fresh-list")?.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-act=queue]");
@@ -1207,6 +1321,11 @@
       if (btn.dataset.act === "mail-contact") {
         const contact = (state.contacts || []).find((c) => c.id === btn.dataset.cid);
         if (contact) dualMailContact(contact);
+      }
+      if (btn.dataset.act === "autofill") {
+        if ($("#af-job")) $("#af-job").value = item.jobId;
+        buildAutofillPack(item.jobId);
+        navigate("autofill");
       }
       if (btn.dataset.act === "done") {
         if (job) job.status = "applied";

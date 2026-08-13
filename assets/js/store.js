@@ -8,6 +8,10 @@ const AscendStore = (() => {
       headline: "",
       summary: "",
       email: "",
+      phone: "",
+      website: "",
+      salaryExpectation: "",
+      country: "France",
       location: "",
       currentTrack: "esn", // esn | end_client | startup | public | other
       targetTrack: "end_client",
