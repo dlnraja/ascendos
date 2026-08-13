@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AscendOS App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Syne:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/main.css" />
+  </head>
+  <body class="app-body">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="./">
+        <span class="brand-mark" aria-hidden="true"></span>
+        AscendOS
+      </a>
+      <nav class="side-nav" aria-label="Navigation">
+        <a href="#dashboard" class="side-link active" data-view="dashboard">Dashboard</a>
+        <a href="#profile" class="side-link" data-view="profile">Profil Vault</a>
+        <a href="#accelerator" class="side-link" data-view="accelerator">Accélérateur</a>
+        <a href="#ats" class="side-link" data-view="ats">ATS Match</a>
+        <a href="#cv" class="side-link" data-view="cv">CV Studio</a>
+        <a href="#linkedin" class="side-link" data-view="linkedin">LinkedIn Boost</a>
+        <a href="#pipeline" class="side-link" data-view="pipeline">Pipeline</a>
+        <a href="#apply" class="side-link" data-view="apply">Apply Queue</a>
+        <a href="#connectors" class="side-link" data-view="connectors">Connecteurs</a>
+      </nav>
+      <div style="margin-top: auto; display: grid; gap: 0.5rem">
+        <button class="btn btn-soft" id="btn-export-json" type="button">Exporter JSON</button>
+        <label class="btn btn-ghost" style="cursor: pointer">
+          Importer JSON
+          <input type="file" id="btn-import-json" accept="application/json,.json" hidden />
+        </label>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <button class="btn btn-ghost mobile-nav-toggle" id="mobile-nav-toggle" type="button">Menu</button>
+          <h1 id="view-title">Tableau de bord</h1>
+          <p id="view-sub">Priorise les offres qui accélèrent ta carrière.</p>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <section class="view active" id="view-dashboard">
+        <div class="grid-3" style="margin-bottom: 1rem">
+          <div class="panel stat"><div class="value" id="stat-jobs">0</div><div class="label">Offres suivies</div></div>
+          <div class="panel stat"><div class="value" id="stat-accel">0</div><div class="label">Accélérateurs (≥ seuil)</div></div>
+          <div class="panel stat"><div class="value" id="stat-queue">0</div><div class="label">Dans Apply Queue</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <h2>Top levier carrière</h2>
+            <div id="dash-ranked"></div>
+          </div>
+          <div class="panel">
+            <h2>Ajouter une offre</h2>
+            <div class="field"><label>Titre</label><input id="job-title" placeholder="Tech Lead Data" /></div>
+            <div class="field"><label>Entreprise</label><input id="job-company" placeholder="Groupe X" /></div>
+            <div class="field"><label>Lieu</label><input id="job-location" placeholder="Paris / remote" /></div>
+            <div class="field">
+              <label>Type employeur</label>
+              <select id="job-type">
+                <option value="unknown">Auto-détecter</option>
+                <option value="end_client">Client final / interne</option>
+                <option value="esn">ESN / cabinet</option>
+              </select>
+            </div>
+            <div class="field"><label>URL</label><input id="job-url" placeholder="https://..." /></div>
+            <div class="field"><label>Tags</label><input id="job-tags" placeholder="lead, ownership, saas" /></div>
+            <div class="field"><label>Description</label><textarea id="job-desc" placeholder="Colle l'offre ici"></textarea></div>
+            <button class="btn btn-primary" id="btn-add-job" type="button">Ajouter</button>
+            <p style="color: var(--mist); font-size: 0.85rem; margin-top: 0.75rem">
+              Dernier score ATS : <strong id="stat-ats">—</strong>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROFILE -->
+      <section class="view" id="view-profile">
+        <div class="grid-2">
+          <div class="panel">
+            <h2>Profil</h2>
+            <div class="field"><label>Nom</label><input id="pf-name" /></div>
+            <div class="field"><label>Headline</label><input id="pf-headline" /></div>
+            <div class="field"><label>Email</label><input id="pf-email" type="email" /></div>
+            <div class="field"><label>Localisation</label><input id="pf-location" /></div>
+            <div class="field"><label>LinkedIn URL</label><input id="pf-linkedin" /></div>
+            <div class="field"><label>Résumé</label><textarea id="pf-summary"></textarea></div>
+            <div class="field"><label>Compétences (virgules)</label><input id="pf-skills" /></div>
+            <div class="field"><label>Objectif carrière</label><textarea id="pf-goal"></textarea></div>
+            <div class="field">
+              <label>Parcours actuel</label>
+              <select id="pf-current">
+                <option value="esn">ESN / SSII</option>
+                <option value="end_client">Client final</option>
+                <option value="startup">Startup / scale-up</option>
+                <option value="public">Public / autre</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Cible</label>
+              <select id="pf-target">
+                <option value="end_client">Grands groupes / clients finaux</option>
+                <option value="startup">Scale-up produit</option>
+                <option value="esn">Rester ESN (levier faible)</option>
+              </select>
+            </div>
+            <div class="field"><label>Années d'exp</label><input id="pf-years" type="number" min="0" max="50" /></div>
+            <button class="btn btn-primary" id="btn-save-profile" type="button">Enregistrer</button>
+          </div>
+          <div>
+            <div class="panel" style="margin-bottom: 1rem">
+              <h2>Import LinkedIn (coller)</h2>
+              <div class="field">
+                <label>Colle ton profil LinkedIn (texte)</label>
+                <textarea id="import-linkedin" placeholder="Nom\nHeadline\nÀ propos\n..."></textarea>
+              </div>
+              <button class="btn btn-soft" id="btn-import-linkedin" type="button">Fusionner LinkedIn</button>
+            </div>
+            <div class="panel">
+              <h2>AI Vault — Gemini / Workspace / autres</h2>
+              <p style="color: var(--mist); font-size: 0.9rem; margin-bottom: 0.75rem">
+                Demande à Gemini : « produis un JSON profil (headline, summary, skills, career_goal) » puis colle ici.
+              </p>
+              <div class="field">
+                <label>Export IA</label>
+                <textarea id="import-ai" placeholder='{"headline":"...","skills":["..."],"career_goal":"..."}'></textarea>
+              </div>
+              <button class="btn btn-soft" id="btn-import-ai" type="button">Fusionner import IA</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ACCELERATOR -->
+      <section class="view" id="view-accelerator">
+        <div class="panel" style="margin-bottom: 1rem">
+          <h2>Score accélérateur de carrière</h2>
+          <p style="color: var(--mist)">
+            Client final / interne et montée de séniorité scorent haut. ESN / régie / body shopping scorent bas si ta cible est un grand groupe.
+          </p>
+        </div>
+        <div id="accel-list"></div>
+      </section>
+
+      <!-- ATS -->
+      <section class="view" id="view-ats">
+        <div class="grid-2">
+          <div class="panel">
+            <h2>Scan ATS</h2>
+            <div class="field">
+              <label>Texte CV / profil</label>
+              <textarea id="ats-resume" placeholder="Auto depuis profil ou colle ton CV"></textarea>
+            </div>
+            <button class="btn btn-ghost" id="btn-fill-ats-resume" type="button">Remplir depuis profil</button>
+            <div class="field" style="margin-top: 0.75rem">
+              <label>Offre d'emploi</label>
+              <textarea id="ats-job" placeholder="Colle la description du poste"></textarea>
+            </div>
+            <button class="btn btn-primary" id="btn-run-ats" type="button">Analyser</button>
+          </div>
+          <div class="panel">
+            <h2>Résultat</h2>
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem">
+              <div class="value" id="ats-score" style="font-family: var(--font-display); font-size: 2.4rem">—</div>
+              <span class="chip chip-info" id="ats-label">En attente</span>
+            </div>
+            <h3>Mots matchés</h3>
+            <p id="ats-matched" style="color: var(--mist); margin-bottom: 0.75rem">—</p>
+            <h3>Gaps à combler</h3>
+            <ul class="list-gaps" id="ats-gaps"><li>—</li></ul>
+            <div class="field" style="margin-top: 1rem">
+              <label>Suggestion de résumé boosté</label>
+              <textarea id="ats-rewrite"></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CV -->
+      <section class="view" id="view-cv">
+        <div class="grid-2">
+          <div class="panel">
+            <h2>Générer une version</h2>
+            <div class="field">
+              <label>Cible (ex. banque interne, SaaS lead…)</label>
+              <input id="cv-target" placeholder="Grand groupe — Tech Lead interne" />
+            </div>
+            <button class="btn btn-primary" id="btn-boost-cv" type="button">Boost CV</button>
+            <div class="field" style="margin-top: 1rem">
+              <label>Aperçu</label>
+              <textarea id="cv-preview" style="min-height: 220px"></textarea>
+            </div>
+          </div>
+          <div class="panel">
+            <h2>Versions</h2>
+            <div id="cv-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LINKEDIN -->
+      <section class="view" id="view-linkedin">
+        <div class="panel">
+          <h2>Positionnement LinkedIn</h2>
+          <div class="field"><label>Headline proposée</label><textarea id="li-headline" style="min-height: 80px"></textarea></div>
+          <div class="field"><label>About proposé</label><textarea id="li-about" style="min-height: 220px"></textarea></div>
+          <button class="btn btn-primary" id="btn-copy-li" type="button">Copier pour LinkedIn</button>
+        </div>
+      </section>
+
+      <!-- PIPELINE -->
+      <section class="view" id="view-pipeline">
+        <div class="kanban" id="kanban"></div>
+      </section>
+
+      <!-- APPLY -->
+      <section class="view" id="view-apply">
+        <div class="panel" style="margin-bottom: 1rem">
+          <p style="color: var(--mist)">
+            Pas d'auto-spam : tu revues chaque candidature. Outreach Gmail via mailto (ou OAuth si configuré).
+          </p>
+        </div>
+        <div id="apply-list"></div>
+      </section>
+
+      <!-- CONNECTORS -->
+      <section class="view" id="view-connectors">
+        <div class="grid-2">
+          <div class="panel connector">
+            <h2>Gmail</h2>
+            <div class="connector-status">
+              <span class="chip chip-info" id="gmail-status">—</span>
+            </div>
+            <div class="field">
+              <label>Google OAuth Client ID</label>
+              <input id="gmail-client-id" placeholder="xxxxx.apps.googleusercontent.com" />
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-soft" id="btn-connect-gmail" type="button">Connecter Gmail</button>
+            </div>
+            <p style="color: var(--mist); font-size: 0.85rem">
+              Sans backend, on utilise un token implicite court + mailto. Voir docs/CONNECTORS.md.
+            </p>
+          </div>
+          <div class="panel connector">
+            <h2>LinkedIn</h2>
+            <div class="connector-status">
+              <span class="chip chip-info" id="linkedin-status">—</span>
+            </div>
+            <div class="field">
+              <label>LinkedIn Client ID</label>
+              <input id="linkedin-client-id" placeholder="Client ID app LinkedIn" />
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-soft" id="btn-connect-linkedin" type="button">OAuth LinkedIn</button>
+            </div>
+            <p style="color: var(--mist); font-size: 0.85rem">
+              L'API LinkedIn est limitée : l'import par collage reste le plus fiable.
+            </p>
+          </div>
+        </div>
+        <div class="panel" style="margin-top: 1rem">
+          <h2>Gemini / Google Workspace</h2>
+          <p style="color: var(--mist)">
+            Dernier import IA :
+            <strong id="gemini-last">Jamais</strong>
+            — utilise l'onglet Profil Vault → AI Vault.
+          </p>
+          <div class="row-actions" style="margin-top: 0.75rem">
+            <button class="btn btn-primary" id="btn-save-connectors" type="button">Sauver Client IDs</button>
+            <a class="btn btn-ghost" href="docs/CONNECTORS.md">Guide connecteurs</a>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script src="assets/js/store.js"></script>
+    <script src="assets/js/accelerator.js"></script>
+    <script src="assets/js/ats.js"></script>
+    <script src="assets/js/importer.js"></script>
+    <script src="assets/js/connectors.js"></script>
+    <script src="assets/js/app.js"></script>
+  </body>
+</html>
