@@ -339,7 +339,11 @@
         </div>
         <div class="grid-2">
           <div class="panel">
-            <h3>Sources &amp; réglages</h3>
+            <h3>Sources &amp; réglages (polis)</h3>
+            <p style="color: var(--mist); font-size: 0.85rem; margin-bottom: 0.75rem">
+              Uniquement APIs/RSS officiels + tes flux. Pas de contournement anti-bot, pas de scrape LinkedIn/X.
+              Throttle + cache pour rester dans les quotas gratuits.
+            </p>
             <div class="field">
               <label>Fenêtre (heures)</label>
               <input id="fresh-window" type="number" min="1" max="72" value="24" />
@@ -349,22 +353,32 @@
               <input id="fresh-min-career" type="number" min="0" max="100" value="50" />
             </div>
             <div class="field">
-              <label>Recherche live Remotive (remote, dernières 24h)</label>
-              <input id="fresh-query" placeholder="ex: engineer, nurse, sales, finance…" />
+              <label>Mots-clés</label>
+              <input id="fresh-query" placeholder="engineer, infirmier, sales, finance…" />
+            </div>
+            <div class="field">
+              <label>Sources</label>
+              <div id="fresh-sources" class="vector-picker" style="max-height: 220px"></div>
+            </div>
+            <div class="field">
+              <label>RSS perso (1 URL / ligne) — alertes boîte, RssHub auto-hébergé, listes…</label>
+              <textarea id="fresh-custom-rss" placeholder="https://…/feed.xml" style="min-height: 90px"></textarea>
             </div>
             <div class="row-actions">
-              <button class="btn btn-primary" id="btn-fetch-fresh" type="button">Scanner offres fraîches</button>
-              <button class="btn btn-soft" id="btn-queue-all-prime" type="button">File : tous les APPLY NOW</button>
-              <button class="btn btn-ghost" id="btn-save-fresh-settings" type="button">Sauver réglages</button>
+              <button class="btn btn-primary" id="btn-fetch-fresh" type="button">Agréger sources</button>
+              <button class="btn btn-soft" id="btn-queue-all-prime" type="button">File : APPLY NOW</button>
+              <button class="btn btn-ghost" id="btn-save-fresh-settings" type="button">Sauver</button>
             </div>
             <p id="fresh-fetch-status" style="color: var(--mist); font-size: 0.85rem; margin-top: 0.75rem"></p>
+            <div id="fresh-source-report" style="margin-top: 0.75rem"></div>
           </div>
           <div class="panel">
-            <h3>Pourquoi &lt;1h / &lt;24h</h3>
+            <h3>Pourquoi API/RSS plutôt que scrape</h3>
             <ul class="list-gaps">
-              <li>Moins de candidats dans le pipeline ATS → plus de chances d'être lu.</li>
-              <li>Combiné au score upgrade : tu ne spammes pas les offres fraîches faibles.</li>
-              <li>Marque la fraîcheur à l'ajout (ou scrape Remotive) pour classer automatiquement.</li>
+              <li>RemoteOK, Remotive, Arbeitnow, Jobicy, Himalayas, WWR RSS = officiels.</li>
+              <li>X/Twitter &amp; LinkedIn : pas de scrape AscendOS — colle un RSS que <em>toi</em> héberges.</li>
+              <li>Throttle local + cache = pas de ban pour abus de quota gratuit.</li>
+              <li>Remotive / Himalayas peuvent être ~24h de retard : le badge fraîcheur le reflète.</li>
             </ul>
           </div>
         </div>
@@ -547,6 +561,22 @@
           </div>
         </div>
         <div class="panel" style="margin-top: 1rem">
+          <h2>Clés API freemium (optionnel)</h2>
+          <div class="grid-2">
+            <div class="field">
+              <label>Adzuna APP_ID</label>
+              <input id="adzuna-app-id" placeholder="app_id" />
+            </div>
+            <div class="field">
+              <label>Adzuna APP_KEY</label>
+              <input id="adzuna-app-key" placeholder="app_key" />
+            </div>
+          </div>
+          <p style="color: var(--mist); font-size: 0.85rem">
+            Stocké localement. Active la source Adzuna dans Radar frais. Respecte le free tier.
+          </p>
+        </div>
+        <div class="panel" style="margin-top: 1rem">
           <h2>Gemini / Google Workspace</h2>
           <p style="color: var(--mist)">
             Dernier import IA :
@@ -571,6 +601,7 @@
     <script src="assets/js/importer.js"></script>
     <script src="assets/js/email-finder.js"></script>
     <script src="assets/js/freshness.js"></script>
+    <script src="assets/js/job-sources.js"></script>
     <script src="assets/js/autofill.js"></script>
     <script src="assets/js/connectors.js"></script>
     <script src="assets/js/app.js"></script>

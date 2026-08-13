@@ -146,10 +146,18 @@ const FreshRadar = (() => {
   }
 
   /**
-   * Pull recent remote jobs from Remotive public API (CORS-friendly).
-   * Filters to last 24h when possible.
+   * @deprecated use JobSources.aggregate — kept for compatibility
    */
   async function fetchRemotiveFresh(query = "", { hours = 24 } = {}) {
+    if (typeof JobSources !== "undefined") {
+      const { jobs } = await JobSources.aggregate({
+        query,
+        hours,
+        enabledIds: ["remotive"],
+        force: true,
+      });
+      return jobs;
+    }
     const url = query
       ? `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(query)}&limit=50`
       : `https://remotive.com/api/remote-jobs?limit=50`;
@@ -157,26 +165,27 @@ const FreshRadar = (() => {
     if (!res.ok) throw new Error(`Remotive HTTP ${res.status}`);
     const data = await res.json();
     const cutoff = Date.now() - hours * 60 * 60 * 1000;
-    const jobs = (data.jobs || [])
-      .map((j) => {
-        const postedAt = Date.parse(j.publication_date) || Date.now();
-        return {
-          externalId: `remotive_${j.id}`,
-          source: "remotive",
-          title: j.title,
-          company: j.company_name,
-          location: j.candidate_required_location || "Remote",
-          url: j.url,
-          description: j.description ? String(j.description).replace(/<[^>]+>/g, " ").slice(0, 1200) : "",
-          tags: j.tags || [],
-          employerType: "unknown",
-          postedAt,
-          createdAt: Date.now(),
-          status: "saved",
-        };
-      })
+    return (data.jobs || [])
+      .map((j) => ({
+        externalId: `remotive_${j.id}`,
+        source: "remotive",
+        title: j.title,
+        company: j.company_name,
+        location: j.candidate_required_location || "Remote",
+        url: j.url,
+        description: j.description ? String(j.description).replace(/<[^>]+>/g, " ").slice(0, 1200) : "",
+        tags: j.tags || [],
+        employerType: "unknown",
+        postedAt: Date.parse(j.publication_date) || Date.now(),
+        createdAt: Date.now(),
+        status: "saved",
+      }))
       .filter((j) => j.postedAt >= cutoff);
-    return jobs;
+  }
+
+  async function fetchAllFresh(opts) {
+    if (typeof JobSources === "undefined") return fetchRemotiveFresh(opts.query, opts);
+    return JobSources.aggregate(opts);
   }
 
   return {
@@ -189,6 +198,7 @@ const FreshRadar = (() => {
     postedAtFromPreset,
     parsePostedFromText,
     fetchRemotiveFresh,
+    fetchAllFresh,
   };
 })();
 

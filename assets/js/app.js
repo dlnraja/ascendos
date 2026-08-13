@@ -989,6 +989,25 @@
     const minCareer = Number($("#fresh-min-career")?.value) || state.settings.minCareerForPrime || 50;
     if ($("#fresh-window")) $("#fresh-window").value = hours;
     if ($("#fresh-min-career")) $("#fresh-min-career").value = minCareer;
+    if ($("#fresh-custom-rss") && !$("#fresh-custom-rss").dataset.ready) {
+      $("#fresh-custom-rss").value = (state.settings.customRssFeeds || []).join("\n");
+      $("#fresh-custom-rss").dataset.ready = "1";
+    }
+
+    const srcRoot = $("#fresh-sources");
+    if (srcRoot && typeof JobSources !== "undefined") {
+      const enabled = new Set(
+        state.settings.jobSourceIds || JobSources.SOURCES.filter((s) => s.enabledDefault).map((s) => s.id)
+      );
+      srcRoot.innerHTML = JobSources.SOURCES.map(
+        (s) => `<div class="vector-item">
+          <input type="checkbox" id="src-${s.id}" data-source="${s.id}" ${enabled.has(s.id) ? "checked" : ""} />
+          <label for="src-${s.id}">${escapeHtml(s.label)}
+            <small>${escapeHtml(s.freshnessNote)}</small>
+          </label>
+        </div>`
+      ).join("");
+    }
 
     const ranked = FreshRadar.rankForFirstApply(state.jobs, state.profile, {
       maxAgeMs: hours * 3600 * 1000,
@@ -996,7 +1015,9 @@
     });
     const prime = ranked.filter((j) => j.prime.fresh.tier.id === "prime");
     const day = ranked.filter((j) => j.prime.fresh.ageMs != null && j.prime.fresh.ageMs <= 24 * 3600 * 1000);
-    const applyNow = ranked.filter((j) => j.prime.urgency === "apply_now" || (j.prime.urgency === "high" && j.prime.career.score >= minCareer));
+    const applyNow = ranked.filter(
+      (j) => j.prime.urgency === "apply_now" || (j.prime.urgency === "high" && j.prime.career.score >= minCareer)
+    );
 
     $("#fresh-stat-prime").textContent = String(prime.length);
     $("#fresh-stat-24").textContent = String(day.length);
@@ -1020,7 +1041,7 @@
                   <h3 style="margin:0 0 0.35rem">${escapeHtml(j.title)}</h3>
                   <div class="meta" style="color:var(--mist)">${escapeHtml(j.company)} · ${escapeHtml(
               j.location || ""
-            )}</div>
+            )} · <em>${escapeHtml(j.source || "")}</em></div>
                 </div>
                 <div>
                   <span class="chip ${chipClass(p.fresh.tier.tone)}">${escapeHtml(p.fresh.tier.short)} · ${escapeHtml(
@@ -1036,12 +1057,97 @@
               <p style="color:var(--mist);font-size:0.9rem;margin:0.5rem 0">${escapeHtml(p.reason)}</p>
               <div class="row-actions">
                 <button class="btn btn-primary" data-act="queue" data-id="${j.id}" type="button">Mettre en tête de file</button>
-                ${j.url ? `<a class="btn btn-soft" href="${escapeHtml(j.url)}" target="_blank" rel="noopener">Ouvrir offre</a>` : ""}
+                ${
+                  j.url
+                    ? `<a class="btn btn-soft" href="${escapeHtml(j.url)}" target="_blank" rel="noopener">Ouvrir offre</a>`
+                    : ""
+                }
               </div>
             </article>`;
           })
           .join("")
-      : `<p style="color:var(--mist)">Aucune offre dans la fenêtre. Ajoute des offres avec fraîcheur &lt;24h ou lance un scan Remotive.</p>`;
+      : `<p style="color:var(--mist)">Aucune offre dans la fenêtre. Agrège les sources ou ajoute manuellement en PRIME.</p>`;
+  }
+
+  async function fetchFreshJobs() {
+    const status = $("#fresh-fetch-status");
+    const reportEl = $("#fresh-source-report");
+    const q = $("#fresh-query")?.value.trim() || "";
+    const hours = Number($("#fresh-window")?.value) || 24;
+    const enabledIds = $$("#fresh-sources input[data-source]:checked").map((el) => el.dataset.source);
+    const customRss = ($("#fresh-custom-rss")?.value || "")
+      .split(/\n/)
+      .map((s) => s.trim())
+      .filter((s) => /^https?:\/\//i.test(s));
+
+    state.settings.jobSourceIds = enabledIds;
+    state.settings.customRssFeeds = customRss;
+    persist();
+
+    if (status) status.textContent = "Agrégation polie en cours (throttle + sources officielles)…";
+    try {
+      const { jobs: incoming, report } = await FreshRadar.fetchAllFresh({
+        query: q,
+        hours,
+        enabledIds,
+        customRss,
+        apiKeys: {
+          adzunaAppId: state.connectors.adzunaAppId,
+          adzunaAppKey: state.connectors.adzunaAppKey,
+        },
+        force: false,
+        onProgress: (p) => {
+          if (status) status.textContent = `${p.label || p.id}: ${p.status}${p.count != null ? ` (${p.count})` : ""}`;
+        },
+      });
+
+      let added = 0;
+      for (const job of incoming) {
+        if (state.jobs.some((j) => j.externalId && j.externalId === job.externalId)) continue;
+        if (job.url && state.jobs.some((j) => j.url && j.url === job.url)) continue;
+        state.jobs.unshift({ ...job, id: AscendStore.uid("job") });
+        added++;
+      }
+      persist();
+      render();
+
+      if (reportEl) {
+        reportEl.innerHTML = report
+          .map((r) => {
+            const tone =
+              r.status === "ok" || r.status === "cached" || r.status === "fallback_cache"
+                ? "chip-ok"
+                : r.status === "throttled" || r.status === "skipped"
+                  ? "chip-warn"
+                  : "chip-bad";
+            return `<span class="chip ${tone}" style="margin:0.2rem" title="${escapeHtml(r.note || "")}">${escapeHtml(
+              r.id
+            )}: ${escapeHtml(r.status)}${r.count != null ? ` ${r.count}` : ""}</span>`;
+          })
+          .join(" ");
+      }
+      if (status) {
+        status.textContent = `${incoming.length} offres agrégées · ${added} nouvelles · sources respectueuses des quotas`;
+      }
+      toast(`${added} nouvelles offres`);
+    } catch (err) {
+      if (status) status.textContent = `Échec agrégation: ${err.message}`;
+      toast("Agrégation partielle / indisponible");
+    }
+  }
+
+  function saveFreshSettings() {
+    state.settings.freshWindowHours = Number($("#fresh-window")?.value) || 24;
+    state.settings.minCareerForPrime = Number($("#fresh-min-career")?.value) || 50;
+    state.settings.freshFirst = true;
+    state.settings.jobSourceIds = $$("#fresh-sources input[data-source]:checked").map((el) => el.dataset.source);
+    state.settings.customRssFeeds = ($("#fresh-custom-rss")?.value || "")
+      .split(/\n/)
+      .map((s) => s.trim())
+      .filter((s) => /^https?:\/\//i.test(s));
+    persist();
+    toast("Réglages sources / fraîcheur sauvés");
+    renderFresh();
   }
 
   function sortApplyQueueFreshFirst() {
@@ -1056,29 +1162,6 @@
     persist();
     renderApplyQueue();
     toast("File triée : frais + levier d'abord");
-  }
-
-  async function fetchFreshJobs() {
-    const status = $("#fresh-fetch-status");
-    const q = $("#fresh-query")?.value.trim() || "";
-    const hours = Number($("#fresh-window")?.value) || 24;
-    if (status) status.textContent = "Scan Remotive en cours…";
-    try {
-      const incoming = await FreshRadar.fetchRemotiveFresh(q, { hours });
-      let added = 0;
-      for (const job of incoming) {
-        if (state.jobs.some((j) => j.externalId && j.externalId === job.externalId)) continue;
-        state.jobs.unshift({ ...job, id: AscendStore.uid("job") });
-        added++;
-      }
-      persist();
-      render();
-      if (status) status.textContent = `${incoming.length} trouvées (<${hours}h) · ${added} nouvelles ajoutées`;
-      toast(`${added} offres fraîches importées`);
-    } catch (err) {
-      if (status) status.textContent = `Scan impossible (${err.message}). Ajoute manuellement avec fraîcheur PRIME.`;
-      toast("Scan live indisponible — utilise l'ajout manuel");
-    }
   }
 
   function queueAllPrime() {
@@ -1098,18 +1181,11 @@
     toast(n ? `${n} offres en file (prime)` : "Rien de nouveau à filer");
   }
 
-  function saveFreshSettings() {
-    state.settings.freshWindowHours = Number($("#fresh-window")?.value) || 24;
-    state.settings.minCareerForPrime = Number($("#fresh-min-career")?.value) || 50;
-    state.settings.freshFirst = true;
-    persist();
-    toast("Réglages fraîcheur sauvés");
-    renderFresh();
-  }
-
   function renderConnectors() {
     $("#gmail-client-id").value = state.connectors.gmailClientId || "";
     $("#linkedin-client-id").value = state.connectors.linkedinClientId || "";
+    if ($("#adzuna-app-id")) $("#adzuna-app-id").value = state.connectors.adzunaAppId || "";
+    if ($("#adzuna-app-key")) $("#adzuna-app-key").value = state.connectors.adzunaAppKey || "";
     $("#gmail-status").textContent = state.connectors.gmailConnected || Connectors.getStoredToken()
       ? "Session token présente"
       : "Non connecté (import / mailto OK)";
@@ -1239,8 +1315,10 @@
         gmailClientId: $("#gmail-client-id").value,
         linkedinClientId: $("#linkedin-client-id").value,
       });
+      state.connectors.adzunaAppId = $("#adzuna-app-id")?.value.trim() || "";
+      state.connectors.adzunaAppKey = $("#adzuna-app-key")?.value.trim() || "";
       persist();
-      toast("Client IDs sauvés (localStorage)");
+      toast("Connecteurs / clés sauvés (localStorage)");
     });
 
     $("#btn-connect-gmail")?.addEventListener("click", () => {

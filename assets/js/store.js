@@ -48,17 +48,20 @@ const AscendStore = (() => {
       gmailConnected: false,
       linkedinConnected: false,
       lastGeminiImportAt: null,
+      adzunaAppId: "",
+      adzunaAppKey: "",
     },
     settings: {
       preferEndClient: true,
       minAcceleratorScore: 60,
       locale: "fr",
       dualOutreach: true,
-      /** Prefer applying first on freshest high-leverage jobs */
       freshFirst: true,
       freshWindowHours: 24,
       primeUnderMinutes: 60,
       minCareerForPrime: 50,
+      jobSourceIds: null,
+      customRssFeeds: [],
     },
   });
 
