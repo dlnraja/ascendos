@@ -15,34 +15,47 @@
       status: "saved",
       url: "",
       description:
-        "Poste interne client final. Lead une squad data produit, ownership roadmap, stack cloud, management de 5 ingénieurs. Package + intéressement. Pas de régie ESN.",
+        "Poste interne client final. Lead une squad data produit, ownership roadmap, stack cloud, management de 5 ingénieurs. Package + intéressement.",
       tags: ["lead", "data", "interne", "cac 40"],
       createdAt: Date.now(),
     },
     {
       id: AscendStore.uid("job"),
-      title: "Ingénieur Java — mission client",
-      company: "ESN Digitale Partners",
+      title: "Cadre de santé — coordination parcours",
+      company: "CHU régional",
       location: "Lyon",
-      employerType: "esn",
+      employerType: "end_client",
       status: "saved",
       url: "",
       description:
-        "Assistance technique en régie chez un client du secteur assurance. TJM attractif, mobilité entre missions, SSII.",
-      tags: ["java", "esn", "régie"],
+        "Coordination parcours patient, encadrement d'équipe soignante, protocole qualité, creation de poste suite réorganisation.",
+      tags: ["santé", "management", "qualité"],
       createdAt: Date.now(),
     },
     {
       id: AscendStore.uid("job"),
-      title: "Senior Product Engineer",
+      title: "Head of Sales Mid-Market",
       company: "Scale-up SaaS B2B",
       location: "Remote EU",
       employerType: "end_client",
       status: "applied",
       url: "",
       description:
-        "Éditeur SaaS in-house. Ownership features, BSPCE, équipe produit, impact roadmap. Senior engineer.",
-      tags: ["saas", "senior", "ownership", "remote"],
+        "Manager une équipe de 6 AE, quota national, BSPCE, pipeline, coaching. Passage commercial → management.",
+      tags: ["sales", "management", "bspce", "remote"],
+      createdAt: Date.now(),
+    },
+    {
+      id: AscendStore.uid("job"),
+      title: "Conducteur de travaux — multi-sites",
+      company: "Groupe BTP national",
+      location: "Nantes",
+      employerType: "end_client",
+      status: "saved",
+      url: "",
+      description:
+        "Pilotage multi-chantiers, budget, sous-traitants, sécurité. Évolution depuis technicien / chef d'équipe. Package attractif secteur en tension.",
+      tags: ["btp", "management", "budget", "pénurie"],
       createdAt: Date.now(),
     },
   ];
@@ -83,9 +96,10 @@
     const titles = {
       dashboard: ["Tableau de bord", "Priorise les offres qui accélèrent ta carrière."],
       profile: ["Profil Vault", "CV + LinkedIn + imports Gemini / IA."],
-      accelerator: ["Accélérateur", "Multi-vecteurs d'upgrade — pas seulement ESN→client final."],
+      accelerator: ["Accélérateur", "Multi-vecteurs d'upgrade — tous métiers."],
+      passerelles: ["Passerelles & leviers", "Ponts de carrière + coups de chance + CV honnête."],
       ats: ["ATS Match", "Style Jobscan — mots-clés CV ↔ offre."],
-      cv: ["CV Studio", "Versions boostées pour chaque cible."],
+      cv: ["CV Studio", "Versions orientées sans mentir, tous métiers."],
       linkedin: ["LinkedIn Boost", "Headline, about, positionnement client final."],
       pipeline: ["Pipeline", "Tracker type Teal — du saved à l'offre."],
       apply: ["Apply Queue", "File FastApply / LoopCV — revue humaine."],
@@ -205,10 +219,108 @@
     state.profile.currentTrack = track;
     state.profile.targetTrack = target;
     state.profile.yearsExp = years;
-    state.profile.activeVectors = CareerVectors.recommendVectors(state.profile);
+    // Merge form profile text for detection
+    state.profile.headline = $("#pf-headline")?.value.trim() || state.profile.headline;
+    state.profile.summary = $("#pf-summary")?.value.trim() || state.profile.summary;
+    state.profile.skills = ($("#pf-skills")?.value || "")
+      .split(/,/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const smart = Passerelles.suggestVectorsFromProfile(state.profile);
+    state.profile.activeVectors = smart.vectorIds.length
+      ? smart.vectorIds
+      : CareerVectors.recommendVectors(state.profile);
     persist();
     renderVectorPicker();
-    toast(`${state.profile.activeVectors.length} vecteurs suggérés pour ton parcours`);
+    toast(`${state.profile.activeVectors.length} vecteurs — familles: ${smart.families.map((f) => f.label).join(", ") || "générique"}`);
+  }
+
+  function renderPasserelles() {
+    if (!$("#pass-families")) return;
+    const { families, bridges } = Passerelles.findBridges(state.profile);
+
+    $("#pass-families").innerHTML = families.length
+      ? families
+          .map(
+            (f) =>
+              `<span class="chip chip-lime" style="margin:0.2rem">${escapeHtml(f.label)}${
+                f.inferred ? " (inféré)" : ""
+              }</span>`
+          )
+          .join(" ")
+      : `<p style="color:var(--mist)">Importe ton LinkedIn pour une détection fine.</p>`;
+
+    $("#pass-bridges").innerHTML = bridges
+      .slice(0, 8)
+      .map(
+        (b) => `<article class="job-card">
+          <h4>${escapeHtml(b.title)}</h4>
+          <div class="meta">Levier ${escapeHtml(b.leverage)} · Paie ${escapeHtml(b.payLift)}</div>
+          <p style="color:var(--mist);font-size:0.85rem;margin:0.4rem 0">${escapeHtml(b.cvAngle)}</p>
+          <div class="playbook-note">${escapeHtml(b.breakChance)}</div>
+        </article>`
+      )
+      .join("");
+
+    const sel = $("#pass-bridge-select");
+    if (sel) {
+      sel.innerHTML = bridges
+        .slice(0, 12)
+        .map((b, i) => `<option value="${i}">${escapeHtml(b.title)}</option>`)
+        .join("");
+    }
+
+    $("#pass-breaks").innerHTML = Passerelles.BREAKS.map(
+      (br) => `<div class="job-card">
+        <h4>${escapeHtml(br.label)}</h4>
+        <div class="meta">Accel. rémunération : ${escapeHtml(br.payAccel)}</div>
+        <p style="color:var(--mist);font-size:0.85rem">${escapeHtml(br.why)}</p>
+      </div>`
+    ).join("");
+  }
+
+  function orientCvFromPasserelle() {
+    const { bridges } = Passerelles.findBridges(state.profile);
+    const idx = Number($("#pass-bridge-select")?.value || 0);
+    const bridge = bridges[idx] || bridges[0];
+    if (!bridge) {
+      toast("Aucune passerelle — enrichis ton profil LinkedIn");
+      return;
+    }
+    const oriented = Passerelles.orientCv(state.profile, bridge);
+    $("#pass-cv-headline").value = oriented.orientedHeadline;
+    $("#pass-cv-body").value = [oriented.orientedSummary, "", "Bullets modèles:", ...oriented.bulletTemplates].join(
+      "\n"
+    );
+    $("#pass-honesty").textContent = oriented.honestyBadge;
+    $("#pass-cv-rules").innerHTML = oriented.rules.map((r) => `<li>${escapeHtml(r)}</li>`).join("");
+    state._lastOriented = { oriented, bridge };
+    toast("CV orienté — sans invention de faits");
+  }
+
+  function saveOrientedCv() {
+    const body = $("#pass-cv-body")?.value || "";
+    const headline = $("#pass-cv-headline")?.value || "";
+    const target = state._lastOriented?.bridge?.title || "Passerelle";
+    state.cvVersions.unshift({
+      id: AscendStore.uid("cv"),
+      name: `CV orienté · ${target}`,
+      target,
+      body: `${headline}\n\n${body}`,
+      at: Date.now(),
+      honest: true,
+    });
+    persist();
+    renderCvStudio();
+    toast("Sauvé dans CV Studio");
+  }
+
+  function applyPasserelleVectors() {
+    const smart = Passerelles.suggestVectorsFromProfile(state.profile);
+    state.profile.activeVectors = smart.vectorIds;
+    persist();
+    renderVectorPicker();
+    toast("Vecteurs activés selon passerelles détectées");
   }
 
   function renderAccelerator() {
@@ -255,6 +367,13 @@
           <div class="vector-bars">${bars}</div>
           <ul class="list-gaps">${a.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
           ${topPlaybook ? `<div class="playbook-note">${escapeHtml(topPlaybook)}</div>` : ""}
+          ${
+            a.passerelle?.bridge
+              ? `<div class="playbook-note">Passerelle : ${escapeHtml(a.passerelle.bridge.title)} · Angle CV : ${escapeHtml(
+                  a.passerelle.bridge.cvAngle
+                )}</div>`
+              : ""
+          }
           <div class="row-actions">
             <button class="btn btn-soft" data-act="queue" data-id="${j.id}">Ajouter à Apply Queue</button>
             <button class="btn btn-ghost" data-act="status" data-id="${j.id}" data-status="applied">Marquer Applied</button>
@@ -294,33 +413,53 @@
   }
 
   function boostCv() {
-    const target = $("#cv-target").value.trim() || "Client final / grand groupe";
+    const target = $("#cv-target").value.trim() || "Upgrade de carrière";
+    const { bridges } = Passerelles.findBridges(state.profile);
+    const bridge =
+      bridges.find((b) => normalizeIncludes(target, b.title) || normalizeIncludes(target, b.to)) || bridges[0];
+    const oriented = Passerelles.orientCv(state.profile, bridge);
     const gaps = ($("#ats-gaps") ? [...$("#ats-gaps").querySelectorAll("li")].map((li) => li.textContent) : []).filter(
-      (t) => t && t !== "Aucun gap majeur"
+      (t) => t && t !== "Aucun gap majeur" && t !== "—"
     );
     const body = [
       state.profile.fullName,
-      state.profile.headline,
+      oriented.orientedHeadline,
       "",
-      AtsEngine.suggestRewrite(state.profile.summary, gaps),
+      oriented.orientedSummary,
       "",
-      "Compétences: " + (state.profile.skills || []).join(", "),
+      gaps.length ? "Mots ATS à intégrer HONNÊTEMENT (uniquement si vrais) : " + gaps.slice(0, 10).join(", ") : "",
       "",
-      "Objectif: " + (state.profile.careerGoal || ""),
+      "Règles anti-mensonge :",
+      ...oriented.rules.map((r) => `- ${r}`),
       "",
       `Version ciblée: ${target}`,
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
     state.cvVersions.unshift({
       id: AscendStore.uid("cv"),
       name: `CV · ${target}`,
       target,
       body,
       at: Date.now(),
+      honest: true,
     });
     persist();
     $("#cv-preview").value = body;
     renderCvStudio();
-    toast("Version CV créée");
+    toast("CV orienté sans invention de faits");
+  }
+
+  function normalizeIncludes(hay, needle) {
+    const h = String(hay || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "");
+    const n = String(needle || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "");
+    return n && h.includes(n);
   }
 
   function renderLinkedIn() {
@@ -731,6 +870,7 @@
     renderDashboard();
     renderProfile();
     renderAccelerator();
+    renderPasserelles();
     renderCvStudio();
     renderLinkedIn();
     renderPipeline();
@@ -765,9 +905,20 @@
       const raw = $("#import-linkedin").value;
       const { patch } = ProfileImporter.fromLinkedInPaste(raw);
       state.profile = ProfileImporter.applyPatch(state.profile, patch);
+      const smart = Passerelles.suggestVectorsFromProfile(state.profile);
+      if (smart.vectorIds?.length) state.profile.activeVectors = smart.vectorIds;
       persist();
-      renderProfile();
-      toast("Profil LinkedIn importé");
+      render();
+      toast("LinkedIn importé — passerelles & vecteurs recalculés");
+    });
+
+    $("#btn-orient-cv")?.addEventListener("click", orientCvFromPasserelle);
+    $("#btn-save-oriented-cv")?.addEventListener("click", saveOrientedCv);
+    $("#btn-apply-passerelle-vectors")?.addEventListener("click", applyPasserelleVectors);
+    $("#btn-copy-oriented-cv")?.addEventListener("click", async () => {
+      const text = `${$("#pass-cv-headline")?.value || ""}\n\n${$("#pass-cv-body")?.value || ""}`;
+      await navigator.clipboard.writeText(text);
+      toast("CV orienté copié");
     });
 
     $("#btn-import-ai")?.addEventListener("click", () => {

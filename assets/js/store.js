@@ -27,7 +27,7 @@ const AscendStore = (() => {
       skills: [],
       experiences: [],
       languages: ["Français", "Anglais"],
-      careerGoal: "Passer d'une ESN à un grand groupe client final avec plus d'ownership produit.",
+      careerGoal: "Obtenir un meilleur job : plus de levier, de rémunération et d'évolution — via la bonne passerelle.",
       linkedinUrl: "",
       aiImports: [],
     },

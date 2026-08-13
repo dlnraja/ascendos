@@ -395,9 +395,31 @@ const CareerVectors = (() => {
   }
 
   function defaultsForTrack(track) {
-    return VECTORS.filter(
-      (v) => v.defaultOnFor.includes("*") || v.defaultOnFor.includes(track || "other")
-    ).map((v) => v.id);
+    const universal = [
+      "seniority_climb",
+      "compensation",
+      "skills_capital",
+      "platform_leap",
+      "brand_employer",
+      "scope_budget",
+    ];
+    const byTrack = {
+      esn: ["esn_to_end_client", "product_over_agency", "delivery_to_strategy", ...universal],
+      end_client: ["corp_to_ownership", "delivery_to_strategy", "ic_to_management", ...universal],
+      startup: ["startup_to_scale", "corp_to_ownership", "compensation", ...universal],
+      public: ["stability_runway", "mission_impact", "credentials_visibility", ...universal],
+      healthcare: ["stability_runway", "mission_impact", "ic_to_management", "credentials_visibility", ...universal],
+      education: ["mission_impact", "credentials_visibility", "network_whom", ...universal],
+      sales: ["compensation", "ic_to_management", "scope_budget", "geo_market", ...universal],
+      trades: ["ic_to_management", "scope_budget", "stability_runway", "skills_capital", ...universal],
+      management: ["scope_budget", "compensation", "brand_employer", "platform_leap"],
+      better_pay: ["compensation", "geo_market", "brand_employer", "skills_capital", "shortage_via_platform"],
+      independent: ["founder_path", "corp_to_ownership", "autonomy_flexibility", ...universal],
+      other: universal,
+    };
+    const list = byTrack[track] || universal;
+    // Drop unknown ids (e.g. typo)
+    return [...new Set(list.filter((id) => byId(id)))];
   }
 
   function normalize(text) {
@@ -484,6 +506,28 @@ const CareerVectors = (() => {
       composite += Math.min(10, skillHits * 1.5);
     }
 
+    // Passerelles + coups de levier (all careers) when engine is loaded
+    let passerelleFit = null;
+    const bridgeReasons = [];
+    if (typeof Passerelles !== "undefined") {
+      passerelleFit = Passerelles.scoreJobPasserelleFit(job, profile);
+      if (passerelleFit.bridgeScore >= 20) {
+        composite += Math.min(12, passerelleFit.bridgeScore * 0.12);
+        bridgeReasons.push(
+          `Passerelle : ${passerelleFit.bridge?.title || "alignement famille métier"} (${passerelleFit.bridgeScore})`
+        );
+      }
+      if (passerelleFit.breaks?.length) {
+        composite += Math.min(8, passerelleFit.breakScore * 0.08);
+        bridgeReasons.push(
+          `Coup(s) de levier : ${passerelleFit.breaks
+            .slice(0, 2)
+            .map((b) => b.label)
+            .join(", ")}`
+        );
+      }
+    }
+
     // Slight boost if top vectors are all strong
     const strongCount = vectorBreakdown.filter((x) => x.score >= 70).length;
     if (strongCount >= 3) composite += 4;
@@ -509,20 +553,22 @@ const CareerVectors = (() => {
     }
 
     const top = vectorBreakdown.slice(0, 3);
-    const reasons = top.map(
+    const allReasons = top.map(
       (t) => `${t.short || t.label} : ${t.score}/100 — ${t.score >= 60 ? "aligné" : "faible signal"}`
     );
-    if (skillHits > 0) reasons.push(`${skillHits} compétence(s) du profil matchent l'offre.`);
-    if (!activeIds.length) reasons.push("Aucun vecteur actif — active-en dans ton profil.");
+    allReasons.push(...bridgeReasons);
+    if (skillHits > 0) allReasons.push(`${skillHits} compétence(s) du profil matchent l'offre.`);
+    if (!activeIds.length) allReasons.push("Aucun vecteur actif — active-en dans ton profil.");
 
     return {
       score: composite,
       label,
       tone,
       employerType: detectEmployerType(blob, job),
-      reasons,
+      reasons: allReasons,
       vectors: vectorBreakdown,
       activeVectorIds: activeIds,
+      passerelle: passerelleFit,
       signals: { skillHits, strongCount },
     };
   }
@@ -534,6 +580,10 @@ const CareerVectors = (() => {
   }
 
   function recommendVectors(profile) {
+    if (typeof Passerelles !== "undefined") {
+      const smart = Passerelles.suggestVectorsFromProfile(profile);
+      if (smart.vectorIds?.length) return smart.vectorIds;
+    }
     const base = defaultsForTrack(profile.currentTrack);
     const extras = [];
     if ((profile.yearsExp || 0) >= 5) extras.push("ic_to_management", "scope_budget", "staff_ic_track");

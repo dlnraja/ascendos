@@ -1,20 +1,18 @@
 # AscendOS
 
-**De l'upgrade réel, pas du lateral move.** Plateforme open-source (GitHub Pages) qui unifie AIApply, Teal, Jobscan, LinkedIn, apply queue + **Email Finder** — avec un moteur **multi-vecteurs de carrière** (pas seulement ESN → client final).
+**Tous métiers. Meilleur job, pas juste un autre job.** Plateforme GitHub Pages : ATS, pipeline, apply, Email Finder + moteur **multi-vecteurs**, **passerelles** et **CV orienté sans mentir** à partir du profil LinkedIn.
 
 ## Pourquoi AscendOS
 
-La plupart des auto-apply maximisent le volume. AscendOS maximise le **levier de carrière** via des vecteurs inspirés des patterns qui marchent vraiment (career capital, tour of duty, ownership, marque, séniorité, compensation…) :
+| Couche | Rôle |
+|--------|------|
+| Vecteurs | Séniorité, paie, marque, ownership, skills rares, plateforme… |
+| Passerelles | Ponts intelligents entre familles de métiers (santé, vente, BTP, tech, public…) |
+| Coups de levier | Intérim, ex-client, pénurie, scope jump, certif, international… |
+| CV honnête | Reframing vocabulaire / preuves — **jamais** d'invention de faits |
+| Fit ATS + apply | Scanner + file + mails RH en plus du CRM |
 
-| Vecteur (exemples) | Ce que ça filtre |
-|--------|---------|
-| Employeur | Client final, marque CV, produit vs agence, scale-up |
-| Niveau | Titre +1, management, Staff IC, scope P&L, stratégie |
-| Capital | Skills rares, réseau, credentials, plateforme suivante |
-| Économie | Package, autonomie, stabilité |
-| Direction | Pivot industrie, impact, founder path |
-
-Tu actives **tes** vecteurs dans le profil ; chaque offre est scorée dessus. Doc : [`docs/CAREER_VECTORS.md`](docs/CAREER_VECTORS.md).
+Docs : [`docs/CAREER_VECTORS.md`](docs/CAREER_VECTORS.md) · [`docs/PASSERELLES.md`](docs/PASSERELLES.md)
 
 ## Modules (inspirations → AscendOS)
 

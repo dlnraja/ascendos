@@ -22,6 +22,7 @@
         <a href="#dashboard" class="side-link active" data-view="dashboard">Dashboard</a>
         <a href="#profile" class="side-link" data-view="profile">Profil Vault</a>
         <a href="#accelerator" class="side-link" data-view="accelerator">Accélérateur</a>
+        <a href="#passerelles" class="side-link" data-view="passerelles">Passerelles &amp; leviers</a>
         <a href="#ats" class="side-link" data-view="ats">ATS Match</a>
         <a href="#cv" class="side-link" data-view="cv">CV Studio</a>
         <a href="#linkedin" class="side-link" data-view="linkedin">LinkedIn Boost</a>
@@ -100,19 +101,27 @@
             <div class="field">
               <label>Parcours actuel</label>
               <select id="pf-current">
-                <option value="esn">ESN / SSII</option>
-                <option value="end_client">Client final</option>
+                <option value="esn">Conseil / ESN</option>
+                <option value="end_client">Entreprise / client final</option>
                 <option value="startup">Startup / scale-up</option>
-                <option value="public">Public / autre</option>
+                <option value="public">Public / associatif</option>
+                <option value="healthcare">Santé</option>
+                <option value="education">Éducation / formation</option>
+                <option value="sales">Vente / commercial</option>
+                <option value="trades">Métiers / terrain</option>
+                <option value="other">Autre / mixte</option>
               </select>
             </div>
             <div class="field">
               <label>Cible environnement</label>
               <select id="pf-target">
-                <option value="end_client">Grands groupes / clients finaux</option>
-                <option value="startup">Scale-up produit</option>
-                <option value="esn">ESN / conseil</option>
-                <option value="public">Public / autre</option>
+                <option value="end_client">Entreprise / grand groupe</option>
+                <option value="startup">Scale-up / produit</option>
+                <option value="management">Management / direction</option>
+                <option value="better_pay">Mieux rémunéré (même métier ou pivot)</option>
+                <option value="esn">Conseil / ESN</option>
+                <option value="public">Public / associatif</option>
+                <option value="independent">Indépendant / founder</option>
               </select>
             </div>
             <div class="field"><label>Années d'exp</label><input id="pf-years" type="number" min="0" max="50" /></div>
@@ -166,6 +175,49 @@
         <div id="accel-list"></div>
       </section>
 
+      <!-- PASSERELLES -->
+      <section class="view" id="view-passerelles">
+        <div class="panel" style="margin-bottom: 1rem">
+          <h2>Passerelles &amp; coups de levier (tous métiers)</h2>
+          <p style="color: var(--mist)">
+            À partir de ton profil LinkedIn, AscendOS détecte ta famille de métier, propose des
+            <strong>passerelles</strong> vers des jobs mieux payés / plus haut levier, et des
+            <strong>coups de chance</strong> typiques — puis oriente ton CV <em>sans mentir</em>.
+          </p>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <h3>Familles détectées</h3>
+            <div id="pass-families"></div>
+            <h3 style="margin-top: 1rem">Passerelles recommandées</h3>
+            <div id="pass-bridges"></div>
+          </div>
+          <div class="panel">
+            <h3>Coups de levier (patterns)</h3>
+            <div id="pass-breaks"></div>
+            <div class="field" style="margin-top: 1rem">
+              <label>Orienter le CV vers cette passerelle</label>
+              <select id="pass-bridge-select"></select>
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-primary" id="btn-orient-cv" type="button">Orienter CV (honnête)</button>
+              <button class="btn btn-soft" id="btn-apply-passerelle-vectors" type="button">Activer vecteurs liés</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top: 1rem">
+          <h3>CV orienté — sans mensonge</h3>
+          <p id="pass-honesty" class="chip chip-ok" style="margin-bottom: 0.75rem">Reframing seulement</p>
+          <div class="field"><label>Headline orientée</label><textarea id="pass-cv-headline" style="min-height: 70px"></textarea></div>
+          <div class="field"><label>Résumé + bullets modèles</label><textarea id="pass-cv-body" style="min-height: 260px"></textarea></div>
+          <ul class="list-gaps" id="pass-cv-rules"></ul>
+          <div class="row-actions">
+            <button class="btn btn-ghost" id="btn-save-oriented-cv" type="button">Sauver dans CV Studio</button>
+            <button class="btn btn-soft" id="btn-copy-oriented-cv" type="button">Copier</button>
+          </div>
+        </div>
+      </section>
+
       <!-- ATS -->
       <section class="view" id="view-ats">
         <div class="grid-2">
@@ -204,10 +256,13 @@
       <section class="view" id="view-cv">
         <div class="grid-2">
           <div class="panel">
-            <h2>Générer une version</h2>
+            <h2>CV orienté (tous métiers)</h2>
+            <p style="color: var(--mist); font-size: 0.9rem; margin-bottom: 0.75rem">
+              Utilise aussi <strong>Passerelles &amp; leviers</strong> pour un reframing LinkedIn → cible sans inventer.
+            </p>
             <div class="field">
-              <label>Cible (ex. banque interne, SaaS lead…)</label>
-              <input id="cv-target" placeholder="Grand groupe — Tech Lead interne" />
+              <label>Cible (ex. cadre de santé, head of sales, conducteur de travaux…)</label>
+              <input id="cv-target" placeholder="Direction visée — honnête" />
             </div>
             <button class="btn btn-primary" id="btn-boost-cv" type="button">Boost CV</button>
             <div class="field" style="margin-top: 1rem">
@@ -379,6 +434,7 @@
     <div class="toast" id="toast" role="status"></div>
 
     <script src="assets/js/store.js"></script>
+    <script src="assets/js/passerelles.js"></script>
     <script src="assets/js/career-vectors.js"></script>
     <script src="assets/js/accelerator.js"></script>
     <script src="assets/js/ats.js"></script>
