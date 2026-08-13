@@ -83,7 +83,7 @@
     const titles = {
       dashboard: ["Tableau de bord", "Priorise les offres qui accélèrent ta carrière."],
       profile: ["Profil Vault", "CV + LinkedIn + imports Gemini / IA."],
-      accelerator: ["Accélérateur", "ESN → grands groupes & postes gratifiants."],
+      accelerator: ["Accélérateur", "Multi-vecteurs d'upgrade — pas seulement ESN→client final."],
       ats: ["ATS Match", "Style Jobscan — mots-clés CV ↔ offre."],
       cv: ["CV Studio", "Versions boostées pour chaque cible."],
       linkedin: ["LinkedIn Boost", "Headline, about, positionnement client final."],
@@ -147,6 +147,34 @@
     $("#pf-current").value = p.currentTrack || "esn";
     $("#pf-target").value = p.targetTrack || "end_client";
     $("#pf-years").value = p.yearsExp ?? 3;
+    renderVectorPicker();
+  }
+
+  function renderVectorPicker() {
+    const root = $("#pf-vectors");
+    if (!root) return;
+    const active = new Set(state.profile.activeVectors || []);
+    const cats = CareerVectors.CATEGORIES;
+    let html = "";
+    for (const cat of cats) {
+      const items = CareerVectors.VECTORS.filter((v) => v.category === cat.id);
+      if (!items.length) continue;
+      html += `<div class="vector-cat">${escapeHtml(cat.label)}</div>`;
+      for (const v of items) {
+        const checked = active.has(v.id) ? "checked" : "";
+        html += `<div class="vector-item">
+          <input type="checkbox" id="vec-${v.id}" data-vector="${v.id}" ${checked} />
+          <label for="vec-${v.id}">${escapeHtml(v.label)}
+            <small>${escapeHtml(v.blurb)}</small>
+          </label>
+        </div>`;
+      }
+    }
+    root.innerHTML = html;
+  }
+
+  function readActiveVectorsFromForm() {
+    return $$("#pf-vectors input[data-vector]:checked").map((el) => el.dataset.vector);
   }
 
   function saveProfileFromForm() {
@@ -164,29 +192,69 @@
     state.profile.currentTrack = $("#pf-current").value;
     state.profile.targetTrack = $("#pf-target").value;
     state.profile.yearsExp = Number($("#pf-years").value) || 0;
+    state.profile.activeVectors = readActiveVectorsFromForm();
     persist();
-    toast("Profil enregistré localement");
+    toast("Profil + vecteurs enregistrés");
     render();
   }
 
+  function suggestVectors() {
+    const track = $("#pf-current")?.value || state.profile.currentTrack;
+    const years = Number($("#pf-years")?.value) || state.profile.yearsExp || 0;
+    const target = $("#pf-target")?.value || state.profile.targetTrack;
+    state.profile.currentTrack = track;
+    state.profile.targetTrack = target;
+    state.profile.yearsExp = years;
+    state.profile.activeVectors = CareerVectors.recommendVectors(state.profile);
+    persist();
+    renderVectorPicker();
+    toast(`${state.profile.activeVectors.length} vecteurs suggérés pour ton parcours`);
+  }
+
   function renderAccelerator() {
+    const legend = $("#accel-vector-legend");
+    if (legend) {
+      const active = state.profile.activeVectors || [];
+      legend.innerHTML = active.length
+        ? active
+            .map((id) => {
+              const v = CareerVectors.byId(id);
+              return v ? `<span class="chip chip-lime">${escapeHtml(v.short || v.label)}</span>` : "";
+            })
+            .join("")
+        : `<span class="chip chip-warn">Aucun vecteur — configure-les dans Profil</span>`;
+    }
+
     const ranked = CareerAccelerator.rankJobs(state.jobs, state.profile);
     const root = $("#accel-list");
     root.innerHTML = ranked
       .map((j) => {
         const a = j.accelerator;
+        const bars = (a.vectors || [])
+          .slice(0, 6)
+          .map(
+            (v) => `<div class="vector-bar-row">
+              <span class="name">${escapeHtml(v.short || v.label)}</span>
+              <div class="score-bar"><span style="width:${v.score}%"></span></div>
+              <strong>${v.score}</strong>
+            </div>`
+          )
+          .join("");
+        const topPlaybook = (a.vectors || []).find((v) => v.score >= 55)?.playbook || "";
         return `<article class="panel" style="margin-bottom:0.75rem">
           <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:start">
             <div>
               <h3 style="margin:0 0 0.35rem">${escapeHtml(j.title)}</h3>
-              <div class="meta" style="color:var(--mist)">${escapeHtml(j.company)} · type détecté: <strong>${escapeHtml(
+              <div class="meta" style="color:var(--mist)">${escapeHtml(j.company)} · employeur: <strong>${escapeHtml(
           a.employerType
         )}</strong></div>
             </div>
             <span class="chip ${chipClass(a.tone)}">${a.score} · ${escapeHtml(a.label)}</span>
           </div>
           <div class="score-bar"><span style="width:${a.score}%"></span></div>
+          <div class="vector-bars">${bars}</div>
           <ul class="list-gaps">${a.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+          ${topPlaybook ? `<div class="playbook-note">${escapeHtml(topPlaybook)}</div>` : ""}
           <div class="row-actions">
             <button class="btn btn-soft" data-act="queue" data-id="${j.id}">Ajouter à Apply Queue</button>
             <button class="btn btn-ghost" data-act="status" data-id="${j.id}" data-status="applied">Marquer Applied</button>
@@ -257,11 +325,17 @@
 
   function renderLinkedIn() {
     const p = state.profile;
-    const endClient = p.targetTrack === "end_client";
-    const headline = endClient
-      ? `${p.headline || "Ingenieur / Product"} | De l'ESN vers l'interne · ownership & impact`
-      : p.headline || "Professionnel en transition";
-    const about = `Je construis des solutions avec un biais produit.\n\nParcours: ${p.currentTrack === "esn" ? "expériences en ESN / projets multi-clients" : "parcours mixte"}.\nObjectif: ${p.careerGoal || "rejoindre un grand groupe / éditeur en poste internalisé"}.\n\nForces: ${(p.skills || []).slice(0, 8).join(", ") || "à compléter"}.\n\nOuvert aux échanges sur des rôles ${endClient ? "clients finaux, scale-up produit, ownership" : "alignés avec mon cap"}.`;
+    const active = (p.activeVectors || [])
+      .map((id) => CareerVectors.byId(id)?.short)
+      .filter(Boolean)
+      .slice(0, 4);
+    const vectorLine = active.length ? active.join(" · ") : "upgrade de carrière";
+    const headline = `${p.headline || "Professionnel"} | Cap : ${vectorLine}`;
+    const about = `Je construis avec un biais résultat et ownership.\n\nParcours actuel: ${p.currentTrack || "—"}.\nObjectif: ${p.careerGoal || "un meilleur job — upgrade réel, pas un lateral move"}.\n\nVecteurs que je priorise: ${(p.activeVectors || [])
+      .map((id) => CareerVectors.byId(id)?.label)
+      .filter(Boolean)
+      .slice(0, 6)
+      .join("; ") || "à définir dans AscendOS"}.\n\nForces: ${(p.skills || []).slice(0, 8).join(", ") || "à compléter"}.\n\nOuvert aux échanges sur des rôles qui montent vraiment (scope, capital compétences, plateforme suivante).`;
     $("#li-headline").value = headline.slice(0, 220);
     $("#li-about").value = about;
   }
@@ -679,6 +753,7 @@
     });
 
     $("#btn-save-profile")?.addEventListener("click", saveProfileFromForm);
+    $("#btn-suggest-vectors")?.addEventListener("click", suggestVectors);
     $("#btn-run-ats")?.addEventListener("click", runAts);
     $("#btn-boost-cv")?.addEventListener("click", boostCv);
     $("#btn-add-job")?.addEventListener("click", addJobFromForm);

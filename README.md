@@ -1,20 +1,20 @@
 # AscendOS
 
-**De l'ESN aux grands groupes.** Une plateforme open-source (GitHub Pages) qui unifie les fonctions des outils type AIApply, CandiBoost, CV Boost, FastApply, LoopCV, JobCopilot, Teal, Jobscan et l'optimisation LinkedIn — avec un focus unique : viser des postes **accélérateurs de carrière**.
+**De l'upgrade réel, pas du lateral move.** Plateforme open-source (GitHub Pages) qui unifie AIApply, Teal, Jobscan, LinkedIn, apply queue + **Email Finder** — avec un moteur **multi-vecteurs de carrière** (pas seulement ESN → client final).
 
 ## Pourquoi AscendOS
 
-La plupart des auto-apply maximisent le volume. AscendOS maximise le **levier de carrière** :
+La plupart des auto-apply maximisent le volume. AscendOS maximise le **levier de carrière** via des vecteurs inspirés des patterns qui marchent vraiment (career capital, tour of duty, ownership, marque, séniorité, compensation…) :
 
-| Signal | Exemple |
+| Vecteur (exemples) | Ce que ça filtre |
 |--------|---------|
-| Employeur cible | Client final / grand groupe > ESN / cabinet |
-| Séniorité | Mount (Senior → Lead → Manager) vs lateral |
-| Gratification | Scope produit, impact, package, ownership |
-| Fit ATS | Match mots-clés Jobscan-like avant envoi |
-| Pipeline | Tracker type Teal + file d'apply contrôlée |
+| Employeur | Client final, marque CV, produit vs agence, scale-up |
+| Niveau | Titre +1, management, Staff IC, scope P&L, stratégie |
+| Capital | Skills rares, réseau, credentials, plateforme suivante |
+| Économie | Package, autonomie, stabilité |
+| Direction | Pivot industrie, impact, founder path |
 
-Exemple : un profil qui n'a fait que de l'**ESN** peut cibler des **grands groupes clients finaux** (banque, industrie, tech produit, luxe, énergie…) et filtrer automatiquement les missions « body shopping ».
+Tu actives **tes** vecteurs dans le profil ; chaque offre est scorée dessus. Doc : [`docs/CAREER_VECTORS.md`](docs/CAREER_VECTORS.md).
 
 ## Modules (inspirations → AscendOS)
 

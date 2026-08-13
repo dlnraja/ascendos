@@ -11,6 +11,18 @@ const AscendStore = (() => {
       location: "",
       currentTrack: "esn", // esn | end_client | startup | public | other
       targetTrack: "end_client",
+      /** Multi-select career upgrade vectors (see CareerVectors.VECTORS) */
+      activeVectors: [
+        "esn_to_end_client",
+        "brand_employer",
+        "seniority_climb",
+        "scope_budget",
+        "skills_capital",
+        "platform_leap",
+        "compensation",
+        "product_over_agency",
+        "delivery_to_strategy",
+      ],
       yearsExp: 3,
       skills: [],
       experiences: [],
@@ -45,7 +57,16 @@ const AscendStore = (() => {
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return defaultState();
-      return deepMerge(defaultState(), JSON.parse(raw));
+      const merged = deepMerge(defaultState(), JSON.parse(raw));
+      if (!merged.profile.activeVectors || !merged.profile.activeVectors.length) {
+        merged.profile.activeVectors =
+          typeof CareerVectors !== "undefined"
+            ? CareerVectors.defaultsForTrack(merged.profile.currentTrack)
+            : defaultState().profile.activeVectors;
+      }
+      if (!merged.contacts) merged.contacts = [];
+      if (!merged.emailPatterns) merged.emailPatterns = {};
+      return merged;
     } catch {
       return defaultState();
     }

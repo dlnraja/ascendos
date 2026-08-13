@@ -107,15 +107,26 @@
               </select>
             </div>
             <div class="field">
-              <label>Cible</label>
+              <label>Cible environnement</label>
               <select id="pf-target">
                 <option value="end_client">Grands groupes / clients finaux</option>
                 <option value="startup">Scale-up produit</option>
-                <option value="esn">Rester ESN (levier faible)</option>
+                <option value="esn">ESN / conseil</option>
+                <option value="public">Public / autre</option>
               </select>
             </div>
             <div class="field"><label>Années d'exp</label><input id="pf-years" type="number" min="0" max="50" /></div>
-            <button class="btn btn-primary" id="btn-save-profile" type="button">Enregistrer</button>
+            <div class="field">
+              <label>Vecteurs d'upgrade actifs</label>
+              <p style="color: var(--mist); font-size: 0.82rem; margin: 0 0 0.5rem">
+                ESN→client final n'est qu'un exemple. Coche tous les leviers qui définissent ton « meilleur job ».
+              </p>
+              <div id="pf-vectors" class="vector-picker"></div>
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-ghost" id="btn-suggest-vectors" type="button">Suggérer selon mon parcours</button>
+              <button class="btn btn-primary" id="btn-save-profile" type="button">Enregistrer</button>
+            </div>
           </div>
           <div>
             <div class="panel" style="margin-bottom: 1rem">
@@ -144,10 +155,13 @@
       <!-- ACCELERATOR -->
       <section class="view" id="view-accelerator">
         <div class="panel" style="margin-bottom: 1rem">
-          <h2>Score accélérateur de carrière</h2>
+          <h2>Moteur multi-vecteurs d'upgrade</h2>
           <p style="color: var(--mist)">
-            Client final / interne et montée de séniorité scorent haut. ESN / régie / body shopping scorent bas si ta cible est un grand groupe.
+            Inspiré des patterns des carrières qui montent vraiment : capital de compétences rares, plateforme / tour of duty,
+            marque employeur, séniorité, ownership, compensation, réseau, pivot industrie… Chaque offre est scorée sur
+            <strong>tes</strong> vecteurs actifs — pas seulement ESN → client final.
           </p>
+          <div id="accel-vector-legend" class="vector-legend" style="margin-top: 0.85rem"></div>
         </div>
         <div id="accel-list"></div>
       </section>
@@ -365,6 +379,7 @@
     <div class="toast" id="toast" role="status"></div>
 
     <script src="assets/js/store.js"></script>
+    <script src="assets/js/career-vectors.js"></script>
     <script src="assets/js/accelerator.js"></script>
     <script src="assets/js/ats.js"></script>
     <script src="assets/js/importer.js"></script>

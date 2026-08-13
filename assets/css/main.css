@@ -732,3 +732,79 @@ p {
     transition: none !important;
   }
 }
+
+.vector-picker {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 320px;
+  overflow: auto;
+  padding: 0.35rem;
+  border: 1px solid rgba(238, 246, 241, 0.08);
+  border-radius: 12px;
+  background: rgba(7, 21, 18, 0.35);
+}
+
+.vector-cat {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--lime);
+  margin: 0.45rem 0 0.15rem;
+  font-weight: 700;
+}
+
+.vector-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: start;
+  padding: 0.35rem 0.25rem;
+}
+
+.vector-item label {
+  color: var(--paper);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.vector-item small {
+  display: block;
+  color: var(--mist);
+  font-weight: 400;
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.vector-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.vector-bars {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.65rem 0;
+}
+
+.vector-bar-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 140px) 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.vector-bar-row span.name {
+  color: var(--mist);
+}
+
+.playbook-note {
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid var(--lime);
+  background: rgba(200, 245, 71, 0.06);
+  color: var(--mist);
+  font-size: 0.86rem;
+  border-radius: 0 10px 10px 0;
+}
