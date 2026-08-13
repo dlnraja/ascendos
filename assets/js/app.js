@@ -712,6 +712,19 @@
     fillEmailJobSelect();
     fillPatternSelect();
 
+    const tools = $("#ef-free-tools");
+    if (tools) {
+      tools.innerHTML = (EmailFinder.FREE_TOOLS || [])
+        .map((t) =>
+          t.url
+            ? `<a class="chip chip-info" href="${escapeHtml(t.url)}" target="_blank" rel="noopener">${escapeHtml(
+                t.label
+              )} · ${escapeHtml(t.free)}</a>`
+            : `<span class="chip chip-lime">${escapeHtml(t.label)} · ${escapeHtml(t.free)}</span>`
+        )
+        .join("");
+    }
+
     const learnedRoot = $("#ef-learned");
     if (learnedRoot) {
       const domains = Object.values(state.emailPatterns || {});
@@ -727,7 +740,7 @@
           </div>`
             )
             .join("")
-        : `<p style="color:var(--mist);font-size:0.9rem">Aucune nomenclature apprise. Colle des emails publics d'employés du groupe.</p>`;
+        : `<p style="color:var(--mist);font-size:0.9rem">Colle emails publics, signatures commerciaux ou vCard.</p>`;
     }
 
     const candRoot = $("#ef-candidates");
@@ -736,19 +749,19 @@
         candRoot.innerHTML = `<p style="color:var(--mist)">Aucun pour l'instant.</p>`;
       } else {
         candRoot.innerHTML = lastEmailCandidates
-          .slice(0, 16)
+          .slice(0, 20)
           .map(
             (c) => `<div class="job-card" style="display:flex;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;align-items:center">
               <div>
                 <h4 style="margin:0">${escapeHtml(c.email)}</h4>
-                <div class="meta">${escapeHtml(c.patternLabel)}${c.roleMailbox ? " · boîte générique" : ""} · conf. ${
-              c.confidence
-            }%</div>
+                <div class="meta">${escapeHtml(c.patternLabel || c.method || "")}${
+              c.roleMailbox ? " · boîte" : ""
+            } · conf. ${c.confidence}%${c.method ? ` · ${escapeHtml(c.method)}` : ""}</div>
               </div>
               <div class="row-actions">
                 <button class="btn btn-soft" data-act="pick-email" data-email="${escapeHtml(
                   c.email
-                )}" type="button">Sauver contact</button>
+                )}" type="button">Sauver</button>
                 <button class="btn btn-ghost" data-act="mail-guess" data-email="${escapeHtml(
                   c.email
                 )}" type="button">Mailto dual</button>
@@ -773,7 +786,7 @@
                 c.domain || ""
               )}</div>
                 <div class="score-bar"><span style="width:${top?.confidence || 40}%"></span></div>
-                <span class="chip chip-ok">${escapeHtml(top?.email || "—")}</span>
+                <span class="chip chip-ok">${escapeHtml(c.chosenEmail || top?.email || "—")}</span>
                 <div class="row-actions" style="margin-top:0.5rem">
                   <button class="btn btn-soft" data-act="mail-saved" data-cid="${c.id}" type="button">Mail dual CRM+direct</button>
                   <button class="btn btn-danger" data-act="drop-contact" data-cid="${c.id}" type="button">Supprimer</button>
@@ -782,6 +795,118 @@
             })
             .join("")
         : `<p style="color:var(--mist)">Aucun contact sauvé.</p>`;
+    }
+  }
+
+  function parseCardToForm() {
+    const card = EmailFinder.parseBusinessCard($("#ef-samples")?.value || "");
+    const prev = $("#ef-card-preview");
+    if (!card.emails.length && !card.fullName) {
+      toast("Carte non reconnue — colle nom + email");
+      return;
+    }
+    if (card.fullName && $("#ef-fullname")) $("#ef-fullname").value = card.fullName;
+    if (card.title && $("#ef-title")) $("#ef-title").value = card.title;
+    if (card.domain && $("#ef-domain")) $("#ef-domain").value = card.domain;
+    if (card.title && $("#ef-role")) {
+      const role = EmailFinder.detectRole(card.title);
+      if (role !== "contact") $("#ef-role").value = role;
+    }
+    // Learn pattern from card email + name
+    if (card.emails.length) {
+      const learned = EmailFinder.learnFromPublicSamples(
+        card.fullName ? `${card.fullName} <${card.emails[0]}>` : card.emails[0]
+      );
+      state.emailPatterns = { ...(state.emailPatterns || {}), ...learned };
+      persist();
+    }
+    if (prev) {
+      prev.innerHTML = `<div class="playbook-note">Carte (${escapeHtml(card.source)}) :
+        <strong>${escapeHtml(card.fullName || "—")}</strong> · ${escapeHtml(card.title || "—")} ·
+        ${escapeHtml(card.company || "—")} · ${escapeHtml(card.emails[0] || "—")} ·
+        domaine <code>${escapeHtml(card.domain || "—")}</code></div>`;
+    }
+    renderEmailFinder();
+    toast("Carte parsée → formulaire");
+  }
+
+  async function checkMx() {
+    const domain = EmailFinder.normalizeDomain($("#ef-domain")?.value || "");
+    const el = $("#ef-mx-status");
+    if (!domain) {
+      toast("Domaine requis");
+      return;
+    }
+    if (el) el.textContent = `MX check ${domain}…`;
+    const r = await EmailFinder.checkDomainMx(domain);
+    if (el) {
+      el.textContent = r.ok
+        ? `MX OK pour ${domain} (${(r.mx || []).slice(0, 2).join(", ") || "records"}) — domaine accepte le mail`
+        : `Pas de MX clair pour ${domain}${r.error ? " · " + r.error : ""} — vérifie le domaine`;
+    }
+    toast(r.ok ? "MX OK" : "MX manquant / douteux");
+  }
+
+  async function hunterEnrich() {
+    const key = state.connectors.hunterApiKey || $("#hunter-api-key")?.value.trim();
+    const domain = EmailFinder.normalizeDomain($("#ef-domain")?.value || "");
+    const fullName = $("#ef-fullname")?.value.trim() || "";
+    if (!key) {
+      toast("Ajoute une clé Hunter.io dans Connecteurs (free 50/mois)");
+      navigate("connectors");
+      return;
+    }
+    if (!domain || !fullName) {
+      toast("Domaine + nom requis");
+      return;
+    }
+    try {
+      // Learn pattern from domain-search first (1 credit-ish)
+      try {
+        const pat = await EmailFinder.hunterDomainPattern({ apiKey: key, domain });
+        if (pat.patternId) {
+          state.emailPatterns = state.emailPatterns || {};
+          state.emailPatterns[domain] = {
+            domain,
+            samples: (pat.emails || []).map((e) => ({ email: e.email, name: e.name, at: Date.now() })),
+            patternVotes: { [pat.patternId]: 2 },
+            topPattern: pat.patternId,
+            topLabel: EmailFinder.PATTERNS.find((p) => p.id === pat.patternId)?.label || pat.pattern,
+            confidence: 0.9,
+          };
+          persist();
+        }
+      } catch {
+        /* domain-search optional */
+      }
+
+      const found = await EmailFinder.hunterFind({ apiKey: key, domain, fullName });
+      const permutes = EmailFinder.generateCandidates({
+        fullName,
+        domain,
+        learned: state.emailPatterns,
+      });
+      if (found.found) {
+        lastEmailCandidates = [
+          {
+            email: found.email,
+            patternId: "hunter",
+            patternLabel: "Hunter verified-ish",
+            confidence: found.score || 90,
+            rank: 1,
+            preferred: true,
+            method: "hunter",
+          },
+          ...permutes.filter((p) => p.email !== found.email),
+        ];
+        toast(`Hunter: ${found.email}`);
+      } else {
+        lastEmailCandidates = permutes;
+        toast("Hunter sans match — permutator local");
+      }
+      renderEmailFinder();
+    } catch (e) {
+      toast(`Hunter: ${e.message}`);
     }
   }
 
@@ -816,8 +941,9 @@
       return;
     }
     const guess = EmailFinder.guessDomainFromCompany(job.company);
+    const alts = EmailFinder.guessDomainsFromCompany(job.company).join(", ");
     $("#ef-domain").value = guess;
-    toast(`Suggestion ${guess} — vérifie le vrai domaine`);
+    toast(`Suggestion ${guess} (alts: ${alts})`);
   }
 
   function runEmailGuess() {
@@ -1206,6 +1332,7 @@
     if ($("#adzuna-app-id")) $("#adzuna-app-id").value = state.connectors.adzunaAppId || "";
     if ($("#adzuna-app-key")) $("#adzuna-app-key").value = state.connectors.adzunaAppKey || "";
     if ($("#aggregate-api-base")) $("#aggregate-api-base").value = state.connectors.aggregateApiBase || "";
+    if ($("#hunter-api-key")) $("#hunter-api-key").value = state.connectors.hunterApiKey || "";
     $("#gmail-status").textContent = state.connectors.gmailConnected || Connectors.getStoredToken()
       ? "Session token présente"
       : "Non connecté (import / mailto OK)";
@@ -1338,6 +1465,7 @@
       state.connectors.adzunaAppId = $("#adzuna-app-id")?.value.trim() || "";
       state.connectors.adzunaAppKey = $("#adzuna-app-key")?.value.trim() || "";
       state.connectors.aggregateApiBase = $("#aggregate-api-base")?.value.trim().replace(/\/$/, "") || "";
+      state.connectors.hunterApiKey = $("#hunter-api-key")?.value.trim() || "";
       persist();
       toast("Connecteurs / clés sauvés (localStorage)");
     });
@@ -1457,8 +1585,11 @@
     });
 
     $("#btn-learn-patterns")?.addEventListener("click", learnEmailPatterns);
+    $("#btn-parse-card")?.addEventListener("click", parseCardToForm);
     $("#btn-guess-emails")?.addEventListener("click", runEmailGuess);
     $("#btn-guess-domain")?.addEventListener("click", guessDomainForJob);
+    $("#btn-check-mx")?.addEventListener("click", checkMx);
+    $("#btn-hunter-find")?.addEventListener("click", hunterEnrich);
 
     $("#ef-job")?.addEventListener("change", () => {
       const job = state.jobs.find((j) => j.id === $("#ef-job").value);

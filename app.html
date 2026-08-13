@@ -449,27 +449,32 @@
       <!-- EMAIL FINDER -->
       <section class="view" id="view-emails">
         <div class="panel" style="margin-bottom: 1rem">
-          <h2>Deviner les emails RH &amp; chefs de projet</h2>
+          <h2>Email Finder intelligent (style Hunter / permutator)</h2>
           <p style="color: var(--mist)">
-            Tu candidatures sur le CRM ATS de l'entreprise <strong>et</strong> tu envoies un mail direct.
-            Colle des emails d'employés trouvés sur internet pour apprendre la nomenclature du groupe
-            (<code>prenom.nom@</code>, <code>p.nom@</code>…), puis génère les adresses à partir des noms LinkedIn.
+            Inspiré des outils gratuits (Hunter 50/mois, Apollo crédits, permutators) :
+            cartes de visite / vCard / signatures commerciaux → nomenclature → candidats email.
+            MX check DNS gratuit. Clé Hunter optionnelle pour enrichir.
           </p>
+          <div id="ef-free-tools" class="vector-legend" style="margin-top: 0.65rem"></div>
         </div>
 
         <div class="grid-2">
           <div class="panel">
-            <h2>1. Apprendre la nomenclature</h2>
+            <h2>1. Nomenclature + cartes de visite</h2>
             <div class="field">
-              <label>Emails publics d'employés (un par ligne)</label>
+              <label>Emails publics OU carte / signature / vCard (coller)</label>
               <textarea
                 id="ef-samples"
-                placeholder="Marie Dupont &lt;marie.dupont@groupe-x.com&gt;&#10;j.martin@groupe-x.com&#10;paul.bernard@groupe-x.com"
+                placeholder="Marie Dupont&#10;Responsable commerciale&#10;Groupe X SAS&#10;marie.dupont@groupe-x.fr&#10;Tel: 06…&#10;&#10;ou BEGIN:VCARD …"
                 style="min-height: 140px"
               ></textarea>
             </div>
-            <button class="btn btn-soft" id="btn-learn-patterns" type="button">Analyser les nomenclatures</button>
+            <div class="row-actions">
+              <button class="btn btn-soft" id="btn-learn-patterns" type="button">Analyser nomenclature</button>
+              <button class="btn btn-ghost" id="btn-parse-card" type="button">Parser carte → formulaire</button>
+            </div>
             <div id="ef-learned" style="margin-top: 0.9rem"></div>
+            <div id="ef-card-preview" style="margin-top: 0.75rem"></div>
           </div>
 
           <div class="panel">
@@ -480,15 +485,15 @@
             </div>
             <div class="field">
               <label>Domaine email entreprise</label>
-              <input id="ef-domain" placeholder="groupe-x.com" />
+              <input id="ef-domain" placeholder="groupe-x.fr" />
             </div>
             <div class="field">
-              <label>Nom LinkedIn (prénom nom)</label>
+              <label>Nom (LinkedIn / carte)</label>
               <input id="ef-fullname" placeholder="Camille Moreau" />
             </div>
             <div class="field">
               <label>Titre / rôle</label>
-              <input id="ef-title" placeholder="Talent Acquisition / Chef de projet SI" />
+              <input id="ef-title" placeholder="Talent Acquisition / Commercial / Chef de projet" />
             </div>
             <div class="field">
               <label>Type</label>
@@ -498,6 +503,7 @@
                 <option value="recruiter">Recruteur</option>
                 <option value="pm">Chef de projet</option>
                 <option value="hiring_manager">Hiring manager</option>
+                <option value="sales">Commercial</option>
               </select>
             </div>
             <div class="field">
@@ -507,9 +513,12 @@
               </select>
             </div>
             <div class="row-actions">
-              <button class="btn btn-primary" id="btn-guess-emails" type="button">Générer candidats</button>
+              <button class="btn btn-primary" id="btn-guess-emails" type="button">Permutator</button>
+              <button class="btn btn-soft" id="btn-hunter-find" type="button">Hunter (clé)</button>
+              <button class="btn btn-ghost" id="btn-check-mx" type="button">Check MX</button>
               <button class="btn btn-ghost" id="btn-guess-domain" type="button">Deviner domaine</button>
             </div>
+            <p id="ef-mx-status" style="color: var(--mist); font-size: 0.85rem; margin-top: 0.65rem"></p>
           </div>
         </div>
 
@@ -569,6 +578,10 @@
           <div class="field">
             <label>URL de base (sans slash final)</label>
             <input id="aggregate-api-base" placeholder="https://ascendos-aggregate.xxx.workers.dev" />
+          </div>
+          <div class="field">
+            <label>Hunter.io API key (free 50/mois)</label>
+            <input id="hunter-api-key" type="password" placeholder="hunter api key" autocomplete="off" />
           </div>
         </div>
         <div class="panel" style="margin-top: 1rem">

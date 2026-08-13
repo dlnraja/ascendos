@@ -1,33 +1,61 @@
 /**
- * Email Finder — guess RH / chef de projet emails from:
- * - company domain
- * - observed employee email nomenclatures (public samples)
- * - LinkedIn first/last names
+ * Email Finder — Hunter/Apollo-inspired (local + free APIs)
+ * - Permutator (all common formats)
+ * - Learn patterns from public samples / commercial business cards / vCard
+ * - Optional Hunter.io free API (50 searches/mo with user key)
+ * - MX check via DNS-over-HTTPS (domain validity, not mailbox verify)
  *
- * Local-first. No scraping backend. User pastes public samples + names.
+ * No illegal scraping. Guesses ≠ verified emails — dual outreach with care.
  */
 const EmailFinder = (() => {
   const PATTERNS = [
-    { id: "first.last", label: "prenom.nom", build: (f, l) => `${f}.${l}` },
-    { id: "firstlast", label: "prenomnom", build: (f, l) => `${f}${l}` },
-    { id: "f.last", label: "p.nom", build: (f, l) => `${f[0]}.${l}` },
-    { id: "flast", label: "pnom", build: (f, l) => `${f[0]}${l}` },
-    { id: "last.first", label: "nom.prenom", build: (f, l) => `${l}.${f}` },
-    { id: "lastf", label: "nomp", build: (f, l) => `${l}${f[0]}` },
-    { id: "first_last", label: "prenom_nom", build: (f, l) => `${f}_${l}` },
-    { id: "first-last", label: "prenom-nom", build: (f, l) => `${f}-${l}` },
-    { id: "first", label: "prenom", build: (f) => `${f}` },
-    { id: "last", label: "nom", build: (_f, l) => `${l}` },
-    { id: "f_last", label: "p_nom", build: (f, l) => `${f[0]}_${l}` },
-    { id: "first.l", label: "prenom.n", build: (f, l) => `${f}.${l[0]}` },
+    { id: "first.last", label: "prenom.nom", build: (f, l, m) => `${f}.${l}`, rank: 1 },
+    { id: "flast", label: "pnom", build: (f, l) => `${f[0]}${l}`, rank: 2 },
+    { id: "f.last", label: "p.nom", build: (f, l) => `${f[0]}.${l}`, rank: 3 },
+    { id: "firstlast", label: "prenomnom", build: (f, l) => `${f}${l}`, rank: 4 },
+    { id: "first", label: "prenom", build: (f) => `${f}`, rank: 5 },
+    { id: "last.first", label: "nom.prenom", build: (f, l) => `${l}.${f}`, rank: 6 },
+    { id: "first_last", label: "prenom_nom", build: (f, l) => `${f}_${l}`, rank: 7 },
+    { id: "first-last", label: "prenom-nom", build: (f, l) => `${f}-${l}`, rank: 8 },
+    { id: "lastf", label: "nomp", build: (f, l) => `${l}${f[0]}`, rank: 9 },
+    { id: "last", label: "nom", build: (_f, l) => `${l}`, rank: 10 },
+    { id: "f_last", label: "p_nom", build: (f, l) => `${f[0]}_${l}`, rank: 11 },
+    { id: "first.l", label: "prenom.n", build: (f, l) => `${f}.${l[0]}`, rank: 12 },
+    { id: "f.l", label: "p.n", build: (f, l) => `${f[0]}.${l[0]}`, rank: 13 },
+    {
+      id: "first.m.last",
+      label: "prenom.m.nom",
+      build: (f, l, m) => (m ? `${f}.${m[0]}.${l}` : null),
+      rank: 14,
+    },
+    {
+      id: "fm.last",
+      label: "pm.nom",
+      build: (f, l, m) => (m ? `${f[0]}${m[0]}.${l}` : null),
+      rank: 15,
+    },
+    { id: "last.first", label: "nom.prenom", build: (f, l) => `${l}.${f}`, rank: 6 },
   ];
+
+  // Deduplicate patterns by id
+  const PATTERN_LIST = [...new Map(PATTERNS.map((p) => [p.id, p])).values()].sort(
+    (a, b) => (a.rank || 99) - (b.rank || 99)
+  );
 
   const ROLE_HINTS = {
     hr: ["rh", "hr", "recrut", "talent", "people", "drh", "acquisition", "mobilité"],
     pm: ["chef de projet", "project manager", "delivery", "responsable projet", "program manager", "pmo"],
     hiring_manager: ["manager", "lead", "head of", "directeur", "responsable", "engineering manager"],
     recruiter: ["recruiter", "sourcer", "chasse", "staffing"],
+    sales: ["commercial", "sales", "account", "business develop", "adv", "chargé d'affaires"],
   };
+
+  const FREE_TOOLS = [
+    { id: "hunter", label: "Hunter.io", free: "50 searches/mois", url: "https://hunter.io/users/sign_up" },
+    { id: "apollo", label: "Apollo.io", free: "crédits email/mois", url: "https://www.apollo.io/email-finder" },
+    { id: "permutator", label: "Permutator local", free: "illimité (guess)", url: null },
+    { id: "mx", label: "MX DNS (Cloudflare DoH)", free: "illimité", url: null },
+  ];
 
   function slug(s) {
     return String(s || "")
@@ -38,17 +66,6 @@ const EmailFinder = (() => {
       .trim();
   }
 
-  function slugKeepDot(s) {
-    return String(s || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/\p{M}/gu, "")
-      .replace(/[^a-z0-9._-]+/g, "")
-      .replace(/\.+/g, ".")
-      .replace(/^[\s._-]+|[\s._-]+$/g, "");
-  }
-
-  /** Parse "Marie-Claire Dupont" / "Jean de La Fontaine" from LinkedIn */
   function parsePersonName(fullName) {
     const cleaned = String(fullName || "")
       .replace(/\(.*?\)/g, " ")
@@ -58,22 +75,21 @@ const EmailFinder = (() => {
     if (!cleaned) return { first: "", last: "", middle: [], raw: "" };
 
     const parts = cleaned.split(" ").filter(Boolean);
-    const particles = new Set(["de", "du", "des", "la", "le", "van", "von", "da", "di", "del", "della"]);
-
     if (parts.length === 1) {
       return { first: slug(parts[0]), last: slug(parts[0]), middle: [], raw: cleaned };
     }
 
     const first = slug(parts[0]);
     let last;
+    let middle = [];
     if (parts.length === 2) {
       last = slug(parts[1]);
     } else {
-      last = slug(parts.slice(1).join(" "));
-      if (last.length > 18) last = slug(parts[parts.length - 1]);
+      middle = parts.slice(1, -1).map(slug).filter(Boolean);
+      last = slug(parts[parts.length - 1]);
+      const joined = slug(parts.slice(1).join(" "));
+      if (joined.length <= 18) last = joined;
     }
-
-    const middle = parts.slice(1, -1).map(slug).filter(Boolean);
     return { first, last, middle, raw: cleaned, firstRaw: parts[0], lastRaw: parts[parts.length - 1] };
   }
 
@@ -82,179 +98,335 @@ const EmailFinder = (() => {
     return [...new Set(String(text || "").match(re) || [])].map((e) => e.toLowerCase());
   }
 
+  function extractPhones(text) {
+    const re = /(?:\+33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/g;
+    return [...new Set(String(text || "").match(re) || [])];
+  }
+
+  function extractUrls(text) {
+    const re = /https?:\/\/[^\s<>"]+|www\.[^\s<>"]+/gi;
+    return [...new Set(String(text || "").match(re) || [])];
+  }
+
   function domainFromEmail(email) {
-    const m = String(email || "").toLowerCase().match(/@([^@\s]+)$/);
+    const m = String(email || "")
+      .toLowerCase()
+      .match(/@([^@\s]+)$/);
     return m ? m[1] : "";
   }
 
   function normalizeDomain(input) {
-    let d = String(input || "")
+    return String(input || "")
       .trim()
       .toLowerCase()
       .replace(/^https?:\/\//, "")
       .replace(/^www\./, "")
       .split("/")[0]
       .split("?")[0];
-    return d;
   }
 
   function guessDomainFromCompany(company) {
     const c = slug(company);
     if (!c) return "";
-    // Heuristic only — user should confirm
-    return `${c}.com`;
+    // FR bias: try .fr first as suggestion list
+    return `${c}.fr`;
   }
 
-  /**
-   * Infer which pattern a sample email uses given a known person name.
-   * Returns ranked pattern matches.
-   */
+  function guessDomainsFromCompany(company) {
+    const c = slug(company);
+    if (!c) return [];
+    return [`${c}.fr`, `${c}.com`, `${c}.eu`, `groupe-${c}.fr`, `${c}.group`];
+  }
+
   function inferPatternFromSample(email, fullName) {
     const local = String(email).split("@")[0] || "";
-    const { first, last } = parsePersonName(fullName);
+    const { first, last, middle } = parsePersonName(fullName);
     if (!first || !last || !local) return null;
-
+    const mid = middle[0] || "";
     const hits = [];
-    for (const p of PATTERNS) {
-      const built = p.build(first, last);
-      if (local === built) {
-        hits.push({ patternId: p.id, label: p.label, confidence: 0.95 });
-      } else if (local.startsWith(built) || built.startsWith(local)) {
+    for (const p of PATTERN_LIST) {
+      const built = p.build(first, last, mid);
+      if (!built) continue;
+      if (local === built) hits.push({ patternId: p.id, label: p.label, confidence: 0.95 });
+      else if (local.startsWith(built) || built.startsWith(local))
         hits.push({ patternId: p.id, label: p.label, confidence: 0.55 });
-      }
     }
     hits.sort((a, b) => b.confidence - a.confidence);
     return hits[0] || null;
   }
 
   /**
-   * Learn domain patterns from a paste of public employee emails + optional "Name <email>" lines.
-   * Lines formats:
-   *   marie.dupont@acme.com
-   *   Marie Dupont <marie.dupont@acme.com>
-   *   Marie Dupont, marie.dupont@acme.com
+   * Parse business card / commercial signature / vCard paste.
+   * Inspired by how sales tools ingest cards + Hunter pattern learning.
    */
+  function parseBusinessCard(raw) {
+    const text = String(raw || "").trim();
+    const out = {
+      fullName: "",
+      title: "",
+      company: "",
+      emails: [],
+      phones: [],
+      domain: "",
+      website: "",
+      linkedin: "",
+      source: "card",
+    };
+
+    if (!text) return out;
+
+    // vCard
+    if (/BEGIN:VCARD/i.test(text)) {
+      const fn = text.match(/FN[;:]([^\r\n]+)/i);
+      const org = text.match(/ORG[;:]([^\r\n]+)/i);
+      const title = text.match(/TITLE[;:]([^\r\n]+)/i);
+      const email = text.match(/EMAIL[^:]*:([^\r\n]+)/i);
+      const url = text.match(/URL[^:]*:([^\r\n]+)/i);
+      const tel = text.match(/TEL[^:]*:([^\r\n]+)/i);
+      out.fullName = (fn?.[1] || "").replace(/\\,/g, ",").trim();
+      out.company = (org?.[1] || "").split(";")[0].replace(/\\,/g, ",").trim();
+      out.title = (title?.[1] || "").replace(/\\,/g, ",").trim();
+      if (email) out.emails = [email[1].trim().toLowerCase()];
+      if (url) out.website = url[1].trim();
+      if (tel) out.phones = [tel[1].trim()];
+      out.source = "vcard";
+    } else {
+      out.emails = extractEmails(text);
+      out.phones = extractPhones(text);
+      const urls = extractUrls(text);
+      out.website = urls.find((u) => !/linkedin\.com/i.test(u)) || "";
+      out.linkedin = urls.find((u) => /linkedin\.com/i.test(u)) || "";
+
+      const lines = text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+
+      // French / commercial card labels
+      for (const line of lines) {
+        const mCompany = line.match(/^(?:société|societe|company|entreprise|agence)\s*[:：]\s*(.+)$/i);
+        const mTitle = line.match(/^(?:titre|fonction|poste|title|job)\s*[:：]\s*(.+)$/i);
+        const mName = line.match(/^(?:nom|name|contact)\s*[:：]\s*(.+)$/i);
+        if (mCompany) out.company = mCompany[1].trim();
+        if (mTitle) out.title = mTitle[1].trim();
+        if (mName) out.fullName = mName[1].trim();
+      }
+
+      // Heuristic: first non-email, non-phone, non-url, non-label line = name
+      if (!out.fullName) {
+        const skip = /^(tel|tél|portable|mobile|fax|email|mail|www|http|société|company|@)/i;
+        const candidate = lines.find((l) => !skip.test(l) && !l.includes("@") && l.length < 60 && /[a-zA-ZÀ-ÿ]/.test(l));
+        if (candidate) out.fullName = candidate.replace(/^(m\.|mme|mr|mrs|dr)\s+/i, "").trim();
+      }
+
+      // Second line often title or company
+      if (!out.title && lines[1] && !lines[1].includes("@") && lines[1].length < 80) {
+        if (/directeur|manager|commercial|responsable|consultant|engineer|chef/i.test(lines[1])) {
+          out.title = lines[1];
+        } else if (!out.company) {
+          out.company = lines[1];
+        }
+      }
+      if (!out.company) {
+        const co = lines.find((l) => /sas|sarl|sa\b|inc|ltd|groupe|company/i.test(l) && !l.includes("@"));
+        if (co) out.company = co;
+      }
+    }
+
+    if (out.emails[0]) out.domain = domainFromEmail(out.emails[0]);
+    else if (out.website) out.domain = normalizeDomain(out.website);
+
+    return out;
+  }
+
   function learnFromPublicSamples(paste) {
-    const lines = String(paste || "").split(/\r?\n/);
+    // Also ingest business-card style blocks separated by blank lines
+    const cards = String(paste || "").split(/\n\s*\n/);
     const byDomain = {};
 
-    for (const line of lines) {
-      const emails = extractEmails(line);
-      if (!emails.length) continue;
-      const email = emails[0];
+    function addSample(email, nameGuess) {
       const domain = domainFromEmail(email);
-      if (!domain) continue;
-
-      let nameGuess = "";
-      const angle = line.match(/^([^<]+)</);
-      const comma = line.match(/^([^,@]+),/);
-      if (angle) nameGuess = angle[1].trim();
-      else if (comma && !comma[1].includes("@")) nameGuess = comma[1].trim();
-
-      // Reverse-guess name from local part if no name
-      const local = email.split("@")[0];
+      if (!domain) return;
       let inferred = null;
-      if (nameGuess) {
-        inferred = inferPatternFromSample(email, nameGuess);
-      } else if (local.includes(".")) {
-        const [f, l] = local.split(".");
-        inferred = { patternId: "first.last", label: "prenom.nom", confidence: 0.7, syntheticName: `${f} ${l}` };
-      } else if (local.includes("_")) {
-        inferred = { patternId: "first_last", label: "prenom_nom", confidence: 0.65 };
-      } else if (local.includes("-")) {
-        inferred = { patternId: "first-last", label: "prenom-nom", confidence: 0.65 };
+      if (nameGuess) inferred = inferPatternFromSample(email, nameGuess);
+      else {
+        const local = email.split("@")[0];
+        if (local.includes(".")) inferred = { patternId: "first.last", label: "prenom.nom", confidence: 0.7 };
+        else if (local.includes("_")) inferred = { patternId: "first_last", label: "prenom_nom", confidence: 0.65 };
+        else if (local.includes("-")) inferred = { patternId: "first-last", label: "prenom-nom", confidence: 0.65 };
       }
-
-      if (!byDomain[domain]) {
-        byDomain[domain] = { domain, samples: [], patternVotes: {}, confidence: 0 };
-      }
+      if (!byDomain[domain]) byDomain[domain] = { domain, samples: [], patternVotes: {}, confidence: 0 };
       byDomain[domain].samples.push({ email, name: nameGuess || null, at: Date.now() });
       if (inferred?.patternId) {
-        const prev = byDomain[domain].patternVotes[inferred.patternId] || 0;
-        byDomain[domain].patternVotes[inferred.patternId] = prev + (inferred.confidence || 0.5);
+        byDomain[domain].patternVotes[inferred.patternId] =
+          (byDomain[domain].patternVotes[inferred.patternId] || 0) + (inferred.confidence || 0.5);
+      }
+    }
+
+    for (const chunk of cards) {
+      const card = parseBusinessCard(chunk);
+      if (card.emails.length && (card.fullName || chunk.includes("@"))) {
+        for (const em of card.emails) addSample(em, card.fullName);
+        continue;
+      }
+      for (const line of chunk.split(/\r?\n/)) {
+        const emails = extractEmails(line);
+        if (!emails.length) continue;
+        let nameGuess = "";
+        const angle = line.match(/^([^<]+)</);
+        const comma = line.match(/^([^,@]+),/);
+        if (angle) nameGuess = angle[1].trim();
+        else if (comma && !comma[1].includes("@")) nameGuess = comma[1].trim();
+        addSample(emails[0], nameGuess);
       }
     }
 
     for (const d of Object.values(byDomain)) {
       const votes = Object.entries(d.patternVotes).sort((a, b) => b[1] - a[1]);
       d.topPattern = votes[0]?.[0] || "first.last";
-      d.topLabel = PATTERNS.find((p) => p.id === d.topPattern)?.label || d.topPattern;
+      d.topLabel = PATTERN_LIST.find((p) => p.id === d.topPattern)?.label || d.topPattern;
       d.confidence = votes[0] ? Math.min(0.98, votes[0][1] / Math.max(1, d.samples.length)) : 0.4;
       d.patternRanking = votes.map(([id, score]) => ({
         id,
-        label: PATTERNS.find((p) => p.id === id)?.label || id,
+        label: PATTERN_LIST.find((p) => p.id === id)?.label || id,
         score,
       }));
     }
-
     return byDomain;
   }
 
-  function generateCandidates({ firstName, lastName, fullName, domain, preferredPatternId, learned }) {
-    const parsed = fullName ? parsePersonName(fullName) : { first: slug(firstName), last: slug(lastName) };
+  function generateCandidates({ firstName, lastName, fullName, domain, preferredPatternId, learned, includeRoles = true }) {
+    const parsed = fullName ? parsePersonName(fullName) : { first: slug(firstName), last: slug(lastName), middle: [] };
     const first = parsed.first;
     const last = parsed.last;
+    const mid = (parsed.middle || [])[0] || "";
     const dom = normalizeDomain(domain);
     if (!first || !last || !dom) return [];
 
-    const preferred =
-      preferredPatternId ||
-      learned?.[dom]?.topPattern ||
-      "first.last";
+    const preferred = preferredPatternId || learned?.[dom]?.topPattern || "first.last";
+    const learnedConf = learned?.[dom]?.confidence ? Math.round(learned[dom].confidence * 100) : null;
+
+    const ordered = [
+      ...PATTERN_LIST.filter((p) => p.id === preferred),
+      ...PATTERN_LIST.filter((p) => p.id !== preferred),
+    ];
 
     const out = [];
     const seen = new Set();
-
-    const ordered = [
-      ...PATTERNS.filter((p) => p.id === preferred),
-      ...PATTERNS.filter((p) => p.id !== preferred),
-    ];
-
     for (let i = 0; i < ordered.length; i++) {
       const p = ordered[i];
-      const local = p.build(first, last);
+      const local = p.build(first, last, mid);
       if (!local) continue;
       const email = `${local}@${dom}`;
       if (seen.has(email)) continue;
       seen.add(email);
       const isPreferred = p.id === preferred;
-      const conf = isPreferred
-        ? learned?.[dom]?.confidence
-          ? Math.round(learned[dom].confidence * 100)
-          : 82
-        : Math.max(25, 70 - i * 5);
       out.push({
         email,
         patternId: p.id,
         patternLabel: p.label,
-        confidence: conf,
+        confidence: isPreferred ? learnedConf || 85 : Math.max(22, 72 - i * 4),
         rank: out.length + 1,
         preferred: isPreferred,
+        method: "permutator",
       });
     }
 
-    // Generic role mailboxes (RH / recrutement) — useful alongside personal emails
-    const roleBoxes = [
-      "rh",
-      "recrutement",
-      "recruitment",
-      "talent",
-      "careers",
-      "jobs",
-      "carrieres",
-      "hr",
-      "emploi",
-    ].map((local, idx) => ({
-      email: `${local}@${dom}`,
-      patternId: "rolebox",
-      patternLabel: `boîte ${local}`,
-      confidence: Math.max(20, 48 - idx * 3),
-      rank: 100 + idx,
-      preferred: false,
-      roleMailbox: true,
-    }));
+    if (includeRoles) {
+      ["rh", "recrutement", "recruitment", "talent", "careers", "jobs", "carrieres", "hr", "emploi", "commercial", "contact"].forEach(
+        (local, idx) => {
+          const email = `${local}@${dom}`;
+          if (seen.has(email)) return;
+          seen.add(email);
+          out.push({
+            email,
+            patternId: "rolebox",
+            patternLabel: `boîte ${local}`,
+            confidence: Math.max(18, 46 - idx * 2),
+            rank: 100 + idx,
+            preferred: false,
+            roleMailbox: true,
+            method: "rolebox",
+          });
+        }
+      );
+    }
+    return out;
+  }
 
-    return [...out, ...roleBoxes];
+  /** Cloudflare DNS-over-HTTPS — check MX exists (domain accepts mail) */
+  async function checkDomainMx(domain) {
+    const d = normalizeDomain(domain);
+    if (!d) return { ok: false, mx: [] };
+    try {
+      const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(d)}&type=MX`, {
+        headers: { Accept: "application/dns-json" },
+      });
+      if (!res.ok) throw new Error(`DNS ${res.status}`);
+      const data = await res.json();
+      const mx = (data.Answer || [])
+        .filter((a) => a.type === 15)
+        .map((a) => a.data);
+      return { ok: mx.length > 0, mx, domain: d };
+    } catch (e) {
+      return { ok: false, mx: [], error: e.message, domain: d };
+    }
+  }
+
+  /**
+   * Hunter.io free API (user key) — email-finder + domain-search pattern.
+   * https://hunter.io/api-documentation/v2
+   */
+  async function hunterFind({ apiKey, domain, firstName, lastName, fullName }) {
+    if (!apiKey) throw new Error("Clé Hunter manquante (Connecteurs)");
+    const parsed = fullName ? parsePersonName(fullName) : { first: slug(firstName), last: slug(lastName) };
+    const params = new URLSearchParams({
+      domain: normalizeDomain(domain),
+      first_name: parsed.firstRaw || parsed.first,
+      last_name: parsed.lastRaw || parsed.last,
+      api_key: apiKey,
+    });
+    const res = await fetch(`https://api.hunter.io/v2/email-finder?${params}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.errors?.[0]?.details || `Hunter HTTP ${res.status}`);
+    const email = data?.data?.email;
+    if (!email) return { found: false, data: data?.data || null };
+    return {
+      found: true,
+      email,
+      score: data.data.score,
+      position: data.data.position,
+      company: data.data.company,
+      sources: data.data.sources || [],
+      method: "hunter",
+    };
+  }
+
+  async function hunterDomainPattern({ apiKey, domain }) {
+    if (!apiKey) throw new Error("Clé Hunter manquante");
+    const params = new URLSearchParams({
+      domain: normalizeDomain(domain),
+      api_key: apiKey,
+      limit: "10",
+    });
+    const res = await fetch(`https://api.hunter.io/v2/domain-search?${params}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.errors?.[0]?.details || `Hunter HTTP ${res.status}`);
+    const pattern = data?.data?.pattern; // e.g. {first}.{last}
+    const emails = (data?.data?.emails || []).map((e) => ({
+      email: e.value,
+      name: [e.first_name, e.last_name].filter(Boolean).join(" "),
+      confidence: e.confidence,
+      position: e.position,
+    }));
+    let patternId = "first.last";
+    if (pattern === "{f}{last}") patternId = "flast";
+    else if (pattern === "{f}.{last}") patternId = "f.last";
+    else if (pattern === "{first}{last}") patternId = "firstlast";
+    else if (pattern === "{first}_{last}") patternId = "first_last";
+    else if (pattern === "{first}-{last}") patternId = "first-last";
+    else if (pattern === "{last}.{first}") patternId = "last.first";
+    return { pattern, patternId, emails, organization: data?.data?.organization };
   }
 
   function detectRole(title) {
@@ -272,32 +444,29 @@ const EmailFinder = (() => {
         pm: "Chef de projet / Delivery",
         hiring_manager: "Hiring manager",
         recruiter: "Recruteur",
+        sales: "Commercial",
         contact: "Contact",
       }[role] || role
     );
   }
 
-  /**
-   * Build dual outreach: ATS CRM note + direct email to guessed contacts.
-   */
   function buildDualOutreach({ profile, job, contact, email }) {
     const name = profile.fullName || "candidat";
     const role = job?.title || "le poste";
     const company = job?.company || "votre entreprise";
     const contactFirst = (contact?.fullName || "").split(" ")[0] || "";
     const hello = contactFirst ? `Bonjour ${contactFirst},` : "Bonjour,";
-
     return {
       subject: `${role} — candidature ${name} (en complément du CRM)`,
       body: `${hello}
 
 Je vous écris en complément de ma candidature déposée sur votre outil de recrutement / ATS concernant « ${role} » chez ${company}.
 
-Profil : ${profile.headline || "en transition vers un poste internalisé / client final"}.
+Profil : ${profile.headline || "en évolution de carrière"}.
 
 ${(profile.summary || "").slice(0, 380)}
 
-Je cherche un échange court (15 min) avec un RH ou un chef de projet / hiring manager pour mieux comprendre le besoin — au-delà du formulaire CRM.
+Seriez-vous ouvert(e) à un échange de 15 minutes ?
 
 Bien cordialement,
 ${name}
@@ -308,15 +477,21 @@ ${profile.linkedinUrl || ""}`,
   }
 
   return {
-    PATTERNS,
+    PATTERNS: PATTERN_LIST,
+    FREE_TOOLS,
     parsePersonName,
     extractEmails,
     domainFromEmail,
     normalizeDomain,
     guessDomainFromCompany,
+    guessDomainsFromCompany,
     inferPatternFromSample,
     learnFromPublicSamples,
+    parseBusinessCard,
     generateCandidates,
+    checkDomainMx,
+    hunterFind,
+    hunterDomainPattern,
     detectRole,
     roleLabel,
     buildDualOutreach,
