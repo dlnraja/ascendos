@@ -22,6 +22,10 @@ const AscendStore = (() => {
     jobs: [],
     applyQueue: [],
     cvVersions: [],
+    /** Learned email nomenclatures by domain from public samples */
+    emailPatterns: {},
+    /** RH / CP / hiring managers linked to jobs */
+    contacts: [],
     connectors: {
       gmailClientId: "",
       linkedinClientId: "",
@@ -33,6 +37,7 @@ const AscendStore = (() => {
       preferEndClient: true,
       minAcceleratorScore: 60,
       locale: "fr",
+      dualOutreach: true,
     },
   });
 

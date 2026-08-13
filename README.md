@@ -25,6 +25,7 @@ Exemple : un profil qui n'a fait que de l'**ESN** peut cibler des **grands group
 | AIApply / CV Boost / CandiBoost | **CV Studio** + lettres + réponses formulaires |
 | LinkedIn Profile tools | **LinkedIn Boost** — headline / about / expériences |
 | FastApply / LoopCV / JobCopilot | **Apply Queue** — file priorisée, revue humaine avant envoi |
+| Hunter / Apollo (esprit) | **Email Finder RH/CP** — nomenclature groupe + noms LinkedIn → mails |
 | Gmail | **Connecteur Gmail** — brouillons d'outreach recruteurs |
 | LinkedIn | **Connecteur LinkedIn** — import profil / export ciblé |
 | Gemini / Workspace / autres IA | **AI Vault** — coller un profil « décrypté » par Gemini ou autre |

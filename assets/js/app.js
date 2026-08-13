@@ -89,6 +89,7 @@
       linkedin: ["LinkedIn Boost", "Headline, about, positionnement client final."],
       pipeline: ["Pipeline", "Tracker type Teal — du saved à l'offre."],
       apply: ["Apply Queue", "File FastApply / LoopCV — revue humaine."],
+      emails: ["Email Finder RH/CP", "Nomenclatures + LinkedIn → mails en plus du CRM ATS."],
       connectors: ["Connecteurs", "Gmail, LinkedIn, Gemini / Workspace."],
     };
     const [t, s] = titles[view] || ["AscendOS", ""];
@@ -325,21 +326,261 @@
         const job = state.jobs.find((j) => j.id === item.jobId);
         if (!job) return "";
         const a = CareerAccelerator.scoreJob(job, state.profile);
+        const contacts = (state.contacts || []).filter((c) => c.jobId === job.id);
+        const contactBlock = contacts.length
+          ? `<div style="margin-top:0.75rem">
+              <div style="color:var(--mist);font-size:0.85rem;margin-bottom:0.4rem">Mails directs (en plus du CRM ATS)</div>
+              ${contacts
+                .map((c) => {
+                  const top = (c.candidates || []).find((x) => x.preferred) || (c.candidates || [])[0];
+                  return `<div class="job-card" style="margin-bottom:0.4rem">
+                    <h4>${escapeHtml(c.fullName)} · ${escapeHtml(EmailFinder.roleLabel(c.role))}</h4>
+                    <div class="meta">${escapeHtml(top?.email || "—")} · conf. ${top?.confidence ?? "—"}%</div>
+                    <div class="row-actions">
+                      <button class="btn btn-soft" data-act="mail-contact" data-qid="${item.id}" data-cid="${c.id}" type="button">Mail dual CRM+direct</button>
+                    </div>
+                  </div>`;
+                })
+                .join("")}
+            </div>`
+          : `<p style="color:var(--mist);font-size:0.85rem;margin-top:0.6rem">Pas encore de contact RH/CP — utilise <strong>Email Finder</strong>.</p>`;
+
         return `<article class="panel" style="margin-bottom:0.75rem">
           <h3>${escapeHtml(job.title)} · ${escapeHtml(job.company)}</h3>
           <span class="chip ${chipClass(a.tone)}">Priorité carrière ${a.score}</span>
           <div class="field" style="margin-top:0.75rem">
-            <label>Réponse formulaires / lettre (éditable)</label>
+            <label>Réponse formulaires ATS / CRM (éditable)</label>
             <textarea data-qid="${item.id}" class="apply-answer">${escapeHtml(item.answer || "")}</textarea>
           </div>
+          ${contactBlock}
           <div class="row-actions">
-            <button class="btn btn-primary" data-act="mailto" data-qid="${item.id}">Ouvrir outreach Gmail</button>
+            <button class="btn btn-primary" data-act="mailto" data-qid="${item.id}">Outreach générique</button>
             <button class="btn btn-ghost" data-act="done" data-qid="${item.id}">Marquer envoyé</button>
             <button class="btn btn-danger" data-act="drop" data-qid="${item.id}">Retirer</button>
           </div>
         </article>`;
       })
       .join("");
+  }
+
+  let lastEmailCandidates = [];
+
+  function fillEmailJobSelect() {
+    const sel = $("#ef-job");
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML =
+      `<option value="">— sans offre —</option>` +
+      state.jobs
+        .map((j) => `<option value="${j.id}">${escapeHtml(j.title)} · ${escapeHtml(j.company)}</option>`)
+        .join("");
+    if (prev) sel.value = prev;
+  }
+
+  function fillPatternSelect() {
+    const sel = $("#ef-pattern");
+    if (!sel) return;
+    sel.innerHTML =
+      `<option value="">Auto (appris ou prenom.nom)</option>` +
+      EmailFinder.PATTERNS.map((p) => `<option value="${p.id}">${p.label}</option>`).join("");
+  }
+
+  function renderEmailFinder() {
+    fillEmailJobSelect();
+    fillPatternSelect();
+
+    const learnedRoot = $("#ef-learned");
+    if (learnedRoot) {
+      const domains = Object.values(state.emailPatterns || {});
+      learnedRoot.innerHTML = domains.length
+        ? domains
+            .map(
+              (d) => `<div class="job-card">
+            <h4>@${escapeHtml(d.domain)}</h4>
+            <div class="meta">Pattern: <strong>${escapeHtml(d.topLabel)}</strong> · conf. ${Math.round(
+                (d.confidence || 0) * 100
+              )}% · ${d.samples?.length || 0} sample(s)</div>
+            <span class="chip chip-lime">${escapeHtml(d.topPattern)}</span>
+          </div>`
+            )
+            .join("")
+        : `<p style="color:var(--mist);font-size:0.9rem">Aucune nomenclature apprise. Colle des emails publics d'employés du groupe.</p>`;
+    }
+
+    const candRoot = $("#ef-candidates");
+    if (candRoot) {
+      if (!lastEmailCandidates.length) {
+        candRoot.innerHTML = `<p style="color:var(--mist)">Aucun pour l'instant.</p>`;
+      } else {
+        candRoot.innerHTML = lastEmailCandidates
+          .slice(0, 16)
+          .map(
+            (c) => `<div class="job-card" style="display:flex;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;align-items:center">
+              <div>
+                <h4 style="margin:0">${escapeHtml(c.email)}</h4>
+                <div class="meta">${escapeHtml(c.patternLabel)}${c.roleMailbox ? " · boîte générique" : ""} · conf. ${
+              c.confidence
+            }%</div>
+              </div>
+              <div class="row-actions">
+                <button class="btn btn-soft" data-act="pick-email" data-email="${escapeHtml(
+                  c.email
+                )}" type="button">Sauver contact</button>
+                <button class="btn btn-ghost" data-act="mail-guess" data-email="${escapeHtml(
+                  c.email
+                )}" type="button">Mailto dual</button>
+              </div>
+            </div>`
+          )
+          .join("");
+      }
+    }
+
+    const contactsRoot = $("#ef-contacts");
+    if (contactsRoot) {
+      const list = state.contacts || [];
+      contactsRoot.innerHTML = list.length
+        ? list
+            .map((c) => {
+              const job = state.jobs.find((j) => j.id === c.jobId);
+              const top = (c.candidates || []).find((x) => x.preferred) || (c.candidates || [])[0];
+              return `<article class="job-card">
+                <h4>${escapeHtml(c.fullName)} · ${escapeHtml(EmailFinder.roleLabel(c.role))}</h4>
+                <div class="meta">${job ? escapeHtml(job.company + " · " + job.title) : "Sans offre"} · ${escapeHtml(
+                c.domain || ""
+              )}</div>
+                <div class="score-bar"><span style="width:${top?.confidence || 40}%"></span></div>
+                <span class="chip chip-ok">${escapeHtml(top?.email || "—")}</span>
+                <div class="row-actions" style="margin-top:0.5rem">
+                  <button class="btn btn-soft" data-act="mail-saved" data-cid="${c.id}" type="button">Mail dual CRM+direct</button>
+                  <button class="btn btn-danger" data-act="drop-contact" data-cid="${c.id}" type="button">Supprimer</button>
+                </div>
+              </article>`;
+            })
+            .join("")
+        : `<p style="color:var(--mist)">Aucun contact sauvé.</p>`;
+    }
+  }
+
+  function learnEmailPatterns() {
+    const paste = $("#ef-samples")?.value || "";
+    const learned = EmailFinder.learnFromPublicSamples(paste);
+    const count = Object.keys(learned).length;
+    if (!count) {
+      toast("Aucun email détecté dans le collage");
+      return;
+    }
+    state.emailPatterns = { ...(state.emailPatterns || {}), ...learned };
+    // Prefill domain from first learned
+    const firstDomain = Object.keys(learned)[0];
+    if (firstDomain && $("#ef-domain")) $("#ef-domain").value = firstDomain;
+    persist();
+    renderEmailFinder();
+    toast(`${count} domaine(s) — nomenclature apprise`);
+  }
+
+  function guessDomainForJob() {
+    const jobId = $("#ef-job")?.value;
+    const job = state.jobs.find((j) => j.id === jobId);
+    if (!job) {
+      toast("Choisis une offre d'abord");
+      return;
+    }
+    // Prefer domain already on job, else from learned patterns matching company slug, else guess
+    if (job.domain) {
+      $("#ef-domain").value = job.domain;
+      toast("Domaine de l'offre");
+      return;
+    }
+    const guess = EmailFinder.guessDomainFromCompany(job.company);
+    $("#ef-domain").value = guess;
+    toast(`Suggestion ${guess} — vérifie le vrai domaine`);
+  }
+
+  function runEmailGuess() {
+    const domain = EmailFinder.normalizeDomain($("#ef-domain")?.value || "");
+    const fullName = $("#ef-fullname")?.value.trim() || "";
+    const title = $("#ef-title")?.value.trim() || "";
+    const patternId = $("#ef-pattern")?.value || "";
+    if (!domain || !fullName) {
+      toast("Domaine + nom LinkedIn requis");
+      return;
+    }
+    lastEmailCandidates = EmailFinder.generateCandidates({
+      fullName,
+      domain,
+      preferredPatternId: patternId || undefined,
+      learned: state.emailPatterns,
+    });
+    renderEmailFinder();
+    toast(`${lastEmailCandidates.length} candidats générés`);
+  }
+
+  function saveContactWithEmail(email) {
+    const jobId = $("#ef-job")?.value || "";
+    const fullName = $("#ef-fullname")?.value.trim() || "";
+    const title = $("#ef-title")?.value.trim() || "";
+    let role = $("#ef-role")?.value || "auto";
+    if (role === "auto") role = EmailFinder.detectRole(title);
+    const domain = EmailFinder.normalizeDomain($("#ef-domain")?.value || "");
+    if (!fullName || !email) {
+      toast("Nom + email requis");
+      return;
+    }
+    const candidates = lastEmailCandidates.length
+      ? lastEmailCandidates
+      : EmailFinder.generateCandidates({
+          fullName,
+          domain,
+          learned: state.emailPatterns,
+        });
+    // Mark chosen as preferred
+    const marked = candidates.map((c) => ({
+      ...c,
+      preferred: c.email === email,
+    }));
+
+    state.contacts = state.contacts || [];
+    state.contacts.unshift({
+      id: AscendStore.uid("ct"),
+      jobId: jobId || null,
+      fullName,
+      title,
+      role,
+      domain,
+      candidates: marked,
+      chosenEmail: email,
+      at: Date.now(),
+    });
+
+    if (jobId) {
+      const job = state.jobs.find((j) => j.id === jobId);
+      if (job) job.domain = domain;
+    }
+
+    persist();
+    renderEmailFinder();
+    renderApplyQueue();
+    toast("Contact sauvé — utilisable dans Apply Queue");
+  }
+
+  function dualMailContact(contact, preferredEmail) {
+    const job = state.jobs.find((j) => j.id === contact.jobId) || {
+      title: contact.title,
+      company: contact.domain,
+    };
+    const email =
+      preferredEmail ||
+      contact.chosenEmail ||
+      (contact.candidates || []).find((c) => c.preferred)?.email ||
+      (contact.candidates || [])[0]?.email;
+    const draft = EmailFinder.buildDualOutreach({
+      profile: state.profile,
+      job,
+      contact,
+      email,
+    });
+    Connectors.mailtoDraft(draft);
   }
 
   function queueJob(jobId) {
@@ -420,6 +661,7 @@
     renderLinkedIn();
     renderPipeline();
     renderApplyQueue();
+    renderEmailFinder();
     renderConnectors();
   }
 
@@ -546,9 +788,13 @@
         Connectors.mailtoDraft({
           to: "",
           subject: draft.subject,
-          body: `${draft.body}\n\n---\nRéponses formulaire:\n${item.answer}`,
+          body: `${draft.body}\n\n---\nRéponses formulaire ATS/CRM:\n${item.answer}`,
         });
         persist();
+      }
+      if (btn.dataset.act === "mail-contact") {
+        const contact = (state.contacts || []).find((c) => c.id === btn.dataset.cid);
+        if (contact) dualMailContact(contact);
       }
       if (btn.dataset.act === "done") {
         if (job) job.status = "applied";
@@ -578,6 +824,52 @@
       const text = `HEADLINE\n${$("#li-headline").value}\n\nABOUT\n${$("#li-about").value}`;
       await navigator.clipboard.writeText(text);
       toast("Copié — colle sur LinkedIn");
+    });
+
+    $("#btn-learn-patterns")?.addEventListener("click", learnEmailPatterns);
+    $("#btn-guess-emails")?.addEventListener("click", runEmailGuess);
+    $("#btn-guess-domain")?.addEventListener("click", guessDomainForJob);
+
+    $("#ef-job")?.addEventListener("change", () => {
+      const job = state.jobs.find((j) => j.id === $("#ef-job").value);
+      if (job?.domain) $("#ef-domain").value = job.domain;
+    });
+
+    $("#ef-candidates")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+      const email = btn.dataset.email;
+      if (btn.dataset.act === "pick-email") saveContactWithEmail(email);
+      if (btn.dataset.act === "mail-guess") {
+        const fullName = $("#ef-fullname")?.value.trim() || "";
+        const title = $("#ef-title")?.value.trim() || "";
+        let role = $("#ef-role")?.value || "auto";
+        if (role === "auto") role = EmailFinder.detectRole(title);
+        const jobId = $("#ef-job")?.value || "";
+        const job = state.jobs.find((j) => j.id === jobId);
+        const draft = EmailFinder.buildDualOutreach({
+          profile: state.profile,
+          job: job || { title: title || "le poste", company: $("#ef-domain")?.value || "" },
+          contact: { fullName, role },
+          email,
+        });
+        Connectors.mailtoDraft(draft);
+      }
+    });
+
+    $("#ef-contacts")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+      const contact = (state.contacts || []).find((c) => c.id === btn.dataset.cid);
+      if (!contact) return;
+      if (btn.dataset.act === "mail-saved") dualMailContact(contact);
+      if (btn.dataset.act === "drop-contact") {
+        state.contacts = state.contacts.filter((c) => c.id !== contact.id);
+        persist();
+        renderEmailFinder();
+        renderApplyQueue();
+        toast("Contact supprimé");
+      }
     });
   }
 

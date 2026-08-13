@@ -27,6 +27,7 @@
         <a href="#linkedin" class="side-link" data-view="linkedin">LinkedIn Boost</a>
         <a href="#pipeline" class="side-link" data-view="pipeline">Pipeline</a>
         <a href="#apply" class="side-link" data-view="apply">Apply Queue</a>
+        <a href="#emails" class="side-link" data-view="emails">Email Finder RH/CP</a>
         <a href="#connectors" class="side-link" data-view="connectors">Connecteurs</a>
       </nav>
       <div style="margin-top: auto; display: grid; gap: 0.5rem">
@@ -226,10 +227,88 @@
       <section class="view" id="view-apply">
         <div class="panel" style="margin-bottom: 1rem">
           <p style="color: var(--mist)">
-            Pas d'auto-spam : tu revues chaque candidature. Outreach Gmail via mailto (ou OAuth si configuré).
+            Pas d'auto-spam : tu revues chaque candidature. Envoie aussi un mail direct RH/CP (Email Finder) en plus du CRM ATS.
           </p>
         </div>
         <div id="apply-list"></div>
+      </section>
+
+      <!-- EMAIL FINDER -->
+      <section class="view" id="view-emails">
+        <div class="panel" style="margin-bottom: 1rem">
+          <h2>Deviner les emails RH &amp; chefs de projet</h2>
+          <p style="color: var(--mist)">
+            Tu candidatures sur le CRM ATS de l'entreprise <strong>et</strong> tu envoies un mail direct.
+            Colle des emails d'employés trouvés sur internet pour apprendre la nomenclature du groupe
+            (<code>prenom.nom@</code>, <code>p.nom@</code>…), puis génère les adresses à partir des noms LinkedIn.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <h2>1. Apprendre la nomenclature</h2>
+            <div class="field">
+              <label>Emails publics d'employés (un par ligne)</label>
+              <textarea
+                id="ef-samples"
+                placeholder="Marie Dupont &lt;marie.dupont@groupe-x.com&gt;&#10;j.martin@groupe-x.com&#10;paul.bernard@groupe-x.com"
+                style="min-height: 140px"
+              ></textarea>
+            </div>
+            <button class="btn btn-soft" id="btn-learn-patterns" type="button">Analyser les nomenclatures</button>
+            <div id="ef-learned" style="margin-top: 0.9rem"></div>
+          </div>
+
+          <div class="panel">
+            <h2>2. Contacter pour une offre</h2>
+            <div class="field">
+              <label>Offre liée</label>
+              <select id="ef-job"></select>
+            </div>
+            <div class="field">
+              <label>Domaine email entreprise</label>
+              <input id="ef-domain" placeholder="groupe-x.com" />
+            </div>
+            <div class="field">
+              <label>Nom LinkedIn (prénom nom)</label>
+              <input id="ef-fullname" placeholder="Camille Moreau" />
+            </div>
+            <div class="field">
+              <label>Titre / rôle</label>
+              <input id="ef-title" placeholder="Talent Acquisition / Chef de projet SI" />
+            </div>
+            <div class="field">
+              <label>Type</label>
+              <select id="ef-role">
+                <option value="auto">Auto-détecter</option>
+                <option value="hr">RH / Talent</option>
+                <option value="recruiter">Recruteur</option>
+                <option value="pm">Chef de projet</option>
+                <option value="hiring_manager">Hiring manager</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Pattern forcé (optionnel)</label>
+              <select id="ef-pattern">
+                <option value="">Auto (appris ou prenom.nom)</option>
+              </select>
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-primary" id="btn-guess-emails" type="button">Générer candidats</button>
+              <button class="btn btn-ghost" id="btn-guess-domain" type="button">Deviner domaine</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top: 1rem">
+          <h2>Emails candidats</h2>
+          <div id="ef-candidates"><p style="color: var(--mist)">Aucun pour l'instant.</p></div>
+        </div>
+
+        <div class="panel" style="margin-top: 1rem">
+          <h2>Contacts sauvés (dual outreach CRM + mail)</h2>
+          <div id="ef-contacts"></div>
+        </div>
       </section>
 
       <!-- CONNECTORS -->
@@ -289,6 +368,7 @@
     <script src="assets/js/accelerator.js"></script>
     <script src="assets/js/ats.js"></script>
     <script src="assets/js/importer.js"></script>
+    <script src="assets/js/email-finder.js"></script>
     <script src="assets/js/connectors.js"></script>
     <script src="assets/js/app.js"></script>
   </body>
