@@ -17,6 +17,7 @@
       description:
         "Poste interne client final. Lead une squad data produit, ownership roadmap, stack cloud, management de 5 ingénieurs. Package + intéressement.",
       tags: ["lead", "data", "interne", "cac 40"],
+      postedAt: Date.now() - 25 * 60 * 1000,
       createdAt: Date.now(),
     },
     {
@@ -30,6 +31,7 @@
       description:
         "Coordination parcours patient, encadrement d'équipe soignante, protocole qualité, creation de poste suite réorganisation.",
       tags: ["santé", "management", "qualité"],
+      postedAt: Date.now() - 3 * 60 * 60 * 1000,
       createdAt: Date.now(),
     },
     {
@@ -43,6 +45,7 @@
       description:
         "Manager une équipe de 6 AE, quota national, BSPCE, pipeline, coaching. Passage commercial → management.",
       tags: ["sales", "management", "bspce", "remote"],
+      postedAt: Date.now() - 20 * 60 * 60 * 1000,
       createdAt: Date.now(),
     },
     {
@@ -56,6 +59,7 @@
       description:
         "Pilotage multi-chantiers, budget, sous-traitants, sécurité. Évolution depuis technicien / chef d'équipe. Package attractif secteur en tension.",
       tags: ["btp", "management", "budget", "pénurie"],
+      postedAt: Date.now() - 50 * 60 * 1000,
       createdAt: Date.now(),
     },
   ];
@@ -102,7 +106,8 @@
       cv: ["CV Studio", "Versions orientées sans mentir, tous métiers."],
       linkedin: ["LinkedIn Boost", "Headline, about, positionnement client final."],
       pipeline: ["Pipeline", "Tracker type Teal — du saved à l'offre."],
-      apply: ["Apply Queue", "File FastApply / LoopCV — revue humaine."],
+      apply: ["Apply Queue", "File FastApply — frais + fort levier d'abord."],
+      fresh: ["Radar frais", "Offres <1h / <24h — sois le premier à postuler."],
       emails: ["Email Finder RH/CP", "Nomenclatures + LinkedIn → mails en plus du CRM ATS."],
       connectors: ["Connecteurs", "Gmail, LinkedIn, Gemini / Workspace."],
     };
@@ -128,21 +133,28 @@
   function renderDashboard() {
     const ranked = CareerAccelerator.rankJobs(state.jobs, state.profile);
     const strong = ranked.filter((j) => j.accelerator.score >= (state.settings.minAcceleratorScore || 60));
+    const freshRanked = FreshRadar.rankForFirstApply(state.jobs, state.profile, {
+      maxAgeMs: (state.settings.freshWindowHours || 24) * 3600 * 1000,
+    });
     $("#stat-jobs").textContent = String(state.jobs.length);
     $("#stat-accel").textContent = String(strong.length);
     $("#stat-queue").textContent = String(state.applyQueue.length);
     $("#stat-ats").textContent = state._lastAtsScore != null ? `${state._lastAtsScore}%` : "—";
 
     const list = $("#dash-ranked");
-    list.innerHTML = ranked
+    list.innerHTML = (state.settings.freshFirst ? freshRanked : ranked)
       .slice(0, 6)
       .map((j) => {
-        const a = j.accelerator;
+        const a = j.accelerator || j.prime?.career;
+        const fresh = j.prime?.fresh || FreshRadar.freshnessScore(j);
         return `<article class="job-card">
           <h4>${escapeHtml(j.title)}</h4>
           <div class="meta">${escapeHtml(j.company)} · ${escapeHtml(j.location || "")}</div>
-          <div class="score-bar"><span style="width:${a.score}%"></span></div>
-          <span class="chip ${chipClass(a.tone)}">${a.score} · ${escapeHtml(a.label)}</span>
+          <div class="score-bar"><span style="width:${a?.score || 0}%"></span></div>
+          <span class="chip ${chipClass(a?.tone)}">${a?.score || 0} · ${escapeHtml(a?.label || "")}</span>
+          <span class="chip ${chipClass(fresh.tier.tone)}" style="margin-left:0.35rem">${escapeHtml(
+            fresh.tier.short
+          )} · ${escapeHtml(fresh.ageLabel)}</span>
         </article>`;
       })
       .join("");
@@ -539,6 +551,7 @@
         const job = state.jobs.find((j) => j.id === item.jobId);
         if (!job) return "";
         const a = CareerAccelerator.scoreJob(job, state.profile);
+        const prime = FreshRadar.primeApplyScore(job, state.profile);
         const contacts = (state.contacts || []).filter((c) => c.jobId === job.id);
         const contactBlock = contacts.length
           ? `<div style="margin-top:0.75rem">
@@ -560,7 +573,15 @@
 
         return `<article class="panel" style="margin-bottom:0.75rem">
           <h3>${escapeHtml(job.title)} · ${escapeHtml(job.company)}</h3>
-          <span class="chip ${chipClass(a.tone)}">Priorité carrière ${a.score}</span>
+          <span class="chip ${chipClass(a.tone)}">Carrière ${a.score}</span>
+          <span class="chip ${chipClass(prime.fresh.tier.tone)}" style="margin-left:0.35rem">${escapeHtml(
+            prime.fresh.tier.short
+          )} · ${escapeHtml(prime.fresh.ageLabel)}</span>
+          ${
+            prime.urgency === "apply_now"
+              ? `<span class="chip chip-ok" style="margin-left:0.35rem">APPLY NOW</span>`
+              : ""
+          }
           <div class="field" style="margin-top:0.75rem">
             <label>Réponse formulaires ATS / CRM (éditable)</label>
             <textarea data-qid="${item.id}" class="apply-answer">${escapeHtml(item.answer || "")}</textarea>
@@ -803,19 +824,42 @@
     }
     const job = state.jobs.find((j) => j.id === jobId);
     if (!job) return;
-    const answer = `Bonjour,\n\nCandidature pour ${job.title} chez ${job.company}.\n\n${state.profile.summary || ""}\n\nJe vise un poste internalisé / client final avec ownership. Disponibilité: immédiate pour un échange.\n\n${state.profile.fullName || ""}`;
-    state.applyQueue.unshift({
+    const answer = `Bonjour,\n\nCandidature pour ${job.title} chez ${job.company}.\n\n${state.profile.summary || ""}\n\nJe vise un meilleur poste (upgrade réel). Disponibilité: immédiate pour un échange.\n\n${state.profile.fullName || ""}`;
+    const item = {
       id: AscendStore.uid("q"),
       jobId,
       answer,
       at: Date.now(),
-    });
+    };
+    const prime = FreshRadar.primeApplyScore(job, state.profile);
+    if (prime.urgency === "apply_now" || prime.fresh.tier.id === "prime") {
+      state.applyQueue.unshift(item);
+    } else {
+      state.applyQueue.push(item);
+    }
+    if (state.settings.freshFirst) {
+      state.applyQueue.sort((a, b) => {
+        const ja = state.jobs.find((j) => j.id === a.jobId);
+        const jb = state.jobs.find((j) => j.id === b.jobId);
+        if (!ja || !jb) return 0;
+        return (
+          FreshRadar.primeApplyScore(jb, state.profile).combined -
+          FreshRadar.primeApplyScore(ja, state.profile).combined
+        );
+      });
+    }
     persist();
-    toast("Ajouté à Apply Queue");
+    toast(prime.urgency === "apply_now" ? "En tête de file — APPLY NOW" : "Ajouté à Apply Queue");
     render();
   }
 
   function addJobFromForm() {
+    const desc = $("#job-desc").value.trim();
+    const preset = $("#job-fresh")?.value || "under_1h";
+    let postedAt = FreshRadar.postedAtFromPreset(preset);
+    const parsed = FreshRadar.parsePostedFromText(desc);
+    if (parsed && (preset === "unknown" || preset === "under_24h")) postedAt = parsed;
+
     const job = {
       id: AscendStore.uid("job"),
       title: $("#job-title").value.trim(),
@@ -824,11 +868,12 @@
       employerType: $("#job-type").value,
       status: "saved",
       url: $("#job-url").value.trim(),
-      description: $("#job-desc").value.trim(),
+      description: desc,
       tags: $("#job-tags").value
         .split(/,/)
         .map((s) => s.trim())
         .filter(Boolean),
+      postedAt: postedAt || Date.now(),
       createdAt: Date.now(),
     };
     if (!job.title || !job.company) {
@@ -840,8 +885,137 @@
     $("#job-title").value = "";
     $("#job-company").value = "";
     $("#job-desc").value = "";
-    toast("Offre ajoutée");
+    const prime = FreshRadar.primeApplyScore(job, state.profile);
+    toast(
+      prime.urgency === "apply_now"
+        ? "Offre PRIME ajoutée — postule maintenant"
+        : `Offre ajoutée · ${prime.fresh.tier.short} · ${prime.fresh.ageLabel}`
+    );
     render();
+  }
+
+  function renderFresh() {
+    if (!$("#fresh-list")) return;
+    const hours = Number($("#fresh-window")?.value) || state.settings.freshWindowHours || 24;
+    const minCareer = Number($("#fresh-min-career")?.value) || state.settings.minCareerForPrime || 50;
+    if ($("#fresh-window")) $("#fresh-window").value = hours;
+    if ($("#fresh-min-career")) $("#fresh-min-career").value = minCareer;
+
+    const ranked = FreshRadar.rankForFirstApply(state.jobs, state.profile, {
+      maxAgeMs: hours * 3600 * 1000,
+      minCareer: 0,
+    });
+    const prime = ranked.filter((j) => j.prime.fresh.tier.id === "prime");
+    const day = ranked.filter((j) => j.prime.fresh.ageMs != null && j.prime.fresh.ageMs <= 24 * 3600 * 1000);
+    const applyNow = ranked.filter((j) => j.prime.urgency === "apply_now" || (j.prime.urgency === "high" && j.prime.career.score >= minCareer));
+
+    $("#fresh-stat-prime").textContent = String(prime.length);
+    $("#fresh-stat-24").textContent = String(day.length);
+    $("#fresh-stat-now").textContent = String(applyNow.length);
+
+    $("#fresh-list").innerHTML = ranked.length
+      ? ranked
+          .map((j) => {
+            const p = j.prime;
+            const urgChip =
+              p.urgency === "apply_now"
+                ? "chip-ok"
+                : p.urgency === "high"
+                  ? "chip-lime"
+                  : p.urgency === "soon"
+                    ? "chip-info"
+                    : "chip-warn";
+            return `<article class="panel" style="margin-bottom:0.75rem">
+              <div style="display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:start">
+                <div>
+                  <h3 style="margin:0 0 0.35rem">${escapeHtml(j.title)}</h3>
+                  <div class="meta" style="color:var(--mist)">${escapeHtml(j.company)} · ${escapeHtml(
+              j.location || ""
+            )}</div>
+                </div>
+                <div>
+                  <span class="chip ${chipClass(p.fresh.tier.tone)}">${escapeHtml(p.fresh.tier.short)} · ${escapeHtml(
+              p.fresh.ageLabel
+            )}</span>
+                  <span class="chip ${urgChip}" style="margin-left:0.35rem">${escapeHtml(p.urgency)}</span>
+                </div>
+              </div>
+              <div class="score-bar"><span style="width:${p.combined}%"></span></div>
+              <div class="meta" style="color:var(--mist);font-size:0.85rem">
+                Score prime ${p.combined} · carrière ${p.career.score} · fraîcheur ${p.fresh.score}
+              </div>
+              <p style="color:var(--mist);font-size:0.9rem;margin:0.5rem 0">${escapeHtml(p.reason)}</p>
+              <div class="row-actions">
+                <button class="btn btn-primary" data-act="queue" data-id="${j.id}" type="button">Mettre en tête de file</button>
+                ${j.url ? `<a class="btn btn-soft" href="${escapeHtml(j.url)}" target="_blank" rel="noopener">Ouvrir offre</a>` : ""}
+              </div>
+            </article>`;
+          })
+          .join("")
+      : `<p style="color:var(--mist)">Aucune offre dans la fenêtre. Ajoute des offres avec fraîcheur &lt;24h ou lance un scan Remotive.</p>`;
+  }
+
+  function sortApplyQueueFreshFirst() {
+    state.applyQueue.sort((a, b) => {
+      const ja = state.jobs.find((j) => j.id === a.jobId);
+      const jb = state.jobs.find((j) => j.id === b.jobId);
+      if (!ja || !jb) return 0;
+      const pa = FreshRadar.primeApplyScore(ja, state.profile);
+      const pb = FreshRadar.primeApplyScore(jb, state.profile);
+      return pb.combined - pa.combined;
+    });
+    persist();
+    renderApplyQueue();
+    toast("File triée : frais + levier d'abord");
+  }
+
+  async function fetchFreshJobs() {
+    const status = $("#fresh-fetch-status");
+    const q = $("#fresh-query")?.value.trim() || "";
+    const hours = Number($("#fresh-window")?.value) || 24;
+    if (status) status.textContent = "Scan Remotive en cours…";
+    try {
+      const incoming = await FreshRadar.fetchRemotiveFresh(q, { hours });
+      let added = 0;
+      for (const job of incoming) {
+        if (state.jobs.some((j) => j.externalId && j.externalId === job.externalId)) continue;
+        state.jobs.unshift({ ...job, id: AscendStore.uid("job") });
+        added++;
+      }
+      persist();
+      render();
+      if (status) status.textContent = `${incoming.length} trouvées (<${hours}h) · ${added} nouvelles ajoutées`;
+      toast(`${added} offres fraîches importées`);
+    } catch (err) {
+      if (status) status.textContent = `Scan impossible (${err.message}). Ajoute manuellement avec fraîcheur PRIME.`;
+      toast("Scan live indisponible — utilise l'ajout manuel");
+    }
+  }
+
+  function queueAllPrime() {
+    const minCareer = Number($("#fresh-min-career")?.value) || state.settings.minCareerForPrime || 50;
+    const ranked = FreshRadar.rankForFirstApply(state.jobs, state.profile, {
+      maxAgeMs: (Number($("#fresh-window")?.value) || 24) * 3600 * 1000,
+      minCareer,
+    }).filter((j) => j.prime.urgency === "apply_now" || j.prime.urgency === "high");
+    let n = 0;
+    for (const j of ranked) {
+      if (!state.applyQueue.some((q) => q.jobId === j.id)) {
+        queueJob(j.id);
+        n++;
+      }
+    }
+    sortApplyQueueFreshFirst();
+    toast(n ? `${n} offres en file (prime)` : "Rien de nouveau à filer");
+  }
+
+  function saveFreshSettings() {
+    state.settings.freshWindowHours = Number($("#fresh-window")?.value) || 24;
+    state.settings.minCareerForPrime = Number($("#fresh-min-career")?.value) || 50;
+    state.settings.freshFirst = true;
+    persist();
+    toast("Réglages fraîcheur sauvés");
+    renderFresh();
   }
 
   function renderConnectors() {
@@ -875,6 +1049,7 @@
     renderLinkedIn();
     renderPipeline();
     renderApplyQueue();
+    renderFresh();
     renderEmailFinder();
     renderConnectors();
   }
@@ -897,6 +1072,17 @@
     $("#btn-run-ats")?.addEventListener("click", runAts);
     $("#btn-boost-cv")?.addEventListener("click", boostCv);
     $("#btn-add-job")?.addEventListener("click", addJobFromForm);
+    $("#btn-sort-queue-fresh")?.addEventListener("click", sortApplyQueueFreshFirst);
+    $("#btn-fetch-fresh")?.addEventListener("click", fetchFreshJobs);
+    $("#btn-queue-all-prime")?.addEventListener("click", queueAllPrime);
+    $("#btn-save-fresh-settings")?.addEventListener("click", saveFreshSettings);
+
+    $("#fresh-list")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act=queue]");
+      if (!btn) return;
+      queueJob(btn.dataset.id);
+    });
+
     $("#btn-fill-ats-resume")?.addEventListener("click", () => {
       $("#ats-resume").value = profileResumeText();
     });

@@ -50,6 +50,11 @@ const AscendStore = (() => {
       minAcceleratorScore: 60,
       locale: "fr",
       dualOutreach: true,
+      /** Prefer applying first on freshest high-leverage jobs */
+      freshFirst: true,
+      freshWindowHours: 24,
+      primeUnderMinutes: 60,
+      minCareerForPrime: 50,
     },
   });
 

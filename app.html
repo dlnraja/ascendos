@@ -28,6 +28,7 @@
         <a href="#linkedin" class="side-link" data-view="linkedin">LinkedIn Boost</a>
         <a href="#pipeline" class="side-link" data-view="pipeline">Pipeline</a>
         <a href="#apply" class="side-link" data-view="apply">Apply Queue</a>
+        <a href="#fresh" class="side-link" data-view="fresh">Radar frais (&lt;24h)</a>
         <a href="#emails" class="side-link" data-view="emails">Email Finder RH/CP</a>
         <a href="#connectors" class="side-link" data-view="connectors">Connecteurs</a>
       </nav>
@@ -75,6 +76,18 @@
               </select>
             </div>
             <div class="field"><label>URL</label><input id="job-url" placeholder="https://..." /></div>
+            <div class="field">
+              <label>Fraîcheur de l'offre</label>
+              <select id="job-fresh">
+                <option value="just_now">À l'instant / &lt; 15 min</option>
+                <option value="under_1h" selected>&lt; 1 heure (PRIME)</option>
+                <option value="under_6h">&lt; 6 heures</option>
+                <option value="under_24h">&lt; 24 heures</option>
+                <option value="under_72h">&lt; 72 heures</option>
+                <option value="older">Plus ancien</option>
+                <option value="unknown">Inconnu</option>
+              </select>
+            </div>
             <div class="field"><label>Tags</label><input id="job-tags" placeholder="lead, ownership, saas" /></div>
             <div class="field"><label>Description</label><textarea id="job-desc" placeholder="Colle l'offre ici"></textarea></div>
             <button class="btn btn-primary" id="btn-add-job" type="button">Ajouter</button>
@@ -296,10 +309,65 @@
       <section class="view" id="view-apply">
         <div class="panel" style="margin-bottom: 1rem">
           <p style="color: var(--mist)">
-            Pas d'auto-spam : tu revues chaque candidature. Envoie aussi un mail direct RH/CP (Email Finder) en plus du CRM ATS.
+            Pas d'auto-spam : tu revues chaque candidature. File triée pour postuler d'abord sur les offres
+            <strong>PRIME (&lt;1h)</strong> à fort levier. Envoie aussi un mail direct RH/CP (Email Finder) en plus du CRM ATS.
           </p>
+          <div class="row-actions">
+            <button class="btn btn-soft" id="btn-sort-queue-fresh" type="button">Trier file : frais d'abord</button>
+          </div>
         </div>
         <div id="apply-list"></div>
+      </section>
+
+      <!-- FRESH RADAR -->
+      <section class="view" id="view-fresh">
+        <div class="panel" style="margin-bottom: 1rem">
+          <h2>Radar offres fraîches — sois le premier</h2>
+          <p style="color: var(--mist)">
+            Les candidatures des premières heures ont un avantage réel. AscendOS combine
+            <strong>âge de l'offre</strong> (&lt;1h PRIME, &lt;24h) et <strong>score d'upgrade</strong> pour te dire où postuler maintenant.
+          </p>
+          <div class="grid-3" style="margin-top: 0.85rem">
+            <div class="stat panel"><div class="value" id="fresh-stat-prime">0</div><div class="label">PRIME &lt;1h</div></div>
+            <div class="stat panel"><div class="value" id="fresh-stat-24">0</div><div class="label">Fraîches &lt;24h</div></div>
+            <div class="stat panel"><div class="value" id="fresh-stat-now">0</div><div class="label">Apply now</div></div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="panel">
+            <h3>Sources &amp; réglages</h3>
+            <div class="field">
+              <label>Fenêtre (heures)</label>
+              <input id="fresh-window" type="number" min="1" max="72" value="24" />
+            </div>
+            <div class="field">
+              <label>Score carrière mini pour prioriser</label>
+              <input id="fresh-min-career" type="number" min="0" max="100" value="50" />
+            </div>
+            <div class="field">
+              <label>Recherche live Remotive (remote, dernières 24h)</label>
+              <input id="fresh-query" placeholder="ex: engineer, nurse, sales, finance…" />
+            </div>
+            <div class="row-actions">
+              <button class="btn btn-primary" id="btn-fetch-fresh" type="button">Scanner offres fraîches</button>
+              <button class="btn btn-soft" id="btn-queue-all-prime" type="button">File : tous les APPLY NOW</button>
+              <button class="btn btn-ghost" id="btn-save-fresh-settings" type="button">Sauver réglages</button>
+            </div>
+            <p id="fresh-fetch-status" style="color: var(--mist); font-size: 0.85rem; margin-top: 0.75rem"></p>
+          </div>
+          <div class="panel">
+            <h3>Pourquoi &lt;1h / &lt;24h</h3>
+            <ul class="list-gaps">
+              <li>Moins de candidats dans le pipeline ATS → plus de chances d'être lu.</li>
+              <li>Combiné au score upgrade : tu ne spammes pas les offres fraîches faibles.</li>
+              <li>Marque la fraîcheur à l'ajout (ou scrape Remotive) pour classer automatiquement.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="panel" style="margin-top: 1rem">
+          <h3>À traiter en premier</h3>
+          <div id="fresh-list"></div>
+        </div>
       </section>
 
       <!-- EMAIL FINDER -->
@@ -440,6 +508,7 @@
     <script src="assets/js/ats.js"></script>
     <script src="assets/js/importer.js"></script>
     <script src="assets/js/email-finder.js"></script>
+    <script src="assets/js/freshness.js"></script>
     <script src="assets/js/connectors.js"></script>
     <script src="assets/js/app.js"></script>
   </body>
