@@ -51,7 +51,17 @@ npx --yes serve .
 
 Ouvre `http://localhost:3000` (ou `index.html` / `app.html` directement).
 
-## Déploiement GitHub Pages
+## Déploiement (live)
+
+| Cible | URL |
+|-------|-----|
+| **GitHub Pages** | https://dlnraja.github.io/ascendos/ · [app](https://dlnraja.github.io/ascendos/app.html) |
+| **Vercel Hobby** | https://ascendos-nine.vercel.app/ · [app](https://ascendos-nine.vercel.app/app) |
+| Agrégateur (optionnel) | coller `https://ascendos-nine.vercel.app` dans Connecteurs → URL API agrégateur |
+
+Sans URL agrégateur, le radar tourne **en local** (AscendCore). Worker Cloudflare / Oracle : secrets encore à ajouter — [`docs/FREE_HOSTING.md`](docs/FREE_HOSTING.md).
+
+## Déploiement GitHub Pages (fork)
 
 1. Pousse le repo sur GitHub.
 2. **Settings → Pages → Source : GitHub Actions** (workflow `.github/workflows/pages.yml`).

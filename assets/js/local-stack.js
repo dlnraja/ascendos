@@ -101,6 +101,10 @@ const LocalStack = (() => {
 
     if (apiBase) {
       onProgress?.({ id: "backend", status: "start", label: "Backend" });
+      const endpoints = [`${apiBase}/aggregate`];
+      if (!/\/api$/i.test(apiBase) && !/\/aggregate$/i.test(apiBase)) {
+        endpoints.push(`${apiBase}/api/aggregate`);
+      }
       try {
         if (typeof AscendQuotas !== "undefined") AscendQuotas.consume("aggregate_run");
         const payload =
@@ -113,21 +117,42 @@ const LocalStack = (() => {
               })
             : { query, hours, sources: enabledIds, rss: customRss };
         const fetchFn = typeof AscendResilience !== "undefined" ? AscendResilience.fetch : fetch;
-        const res = await fetchFn(`${apiBase}/aggregate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify(payload),
-          timeoutMs: 12000,
-        });
-        if (!res.ok) throw new Error(`API ${res.status}`);
-        const data = await res.json();
-        jobs = data.jobs || [];
-        report.push(...(data.report || [{ id: "backend", status: "ok", count: jobs.length }]));
-        onProgress?.({ id: "backend", status: "ok", count: jobs.length });
-        if (jobs.length) {
-          return { jobs, report, path: "backend", degraded: false };
+        let lastErr = "backend KO";
+        for (const url of endpoints) {
+          try {
+            const res = await fetchFn(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify(payload),
+              timeoutMs: 12000,
+            });
+            if (res.status === 404) {
+              lastErr = `API 404 ${url}`;
+              continue;
+            }
+            if (!res.ok) throw new Error(`API ${res.status}`);
+            const data = await res.json();
+            jobs = data.jobs || [];
+            report.push(...(data.report || [{ id: "backend", status: "ok", count: jobs.length }]));
+            onProgress?.({ id: "backend", status: "ok", count: jobs.length });
+            if (jobs.length) {
+              return { jobs, report, path: "backend", degraded: false };
+            }
+            report.push({ id: "backend", status: "empty", note: "Réponse vide → fallback navigateur" });
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e.message || "backend KO";
+          }
         }
-        report.push({ id: "backend", status: "empty", note: "Réponse vide → fallback navigateur" });
+        if (lastErr) {
+          report.push({
+            id: "backend",
+            status: "down",
+            note: `${lastErr} → local`,
+          });
+          onProgress?.({ id: "backend", status: "down" });
+        }
       } catch (e) {
         report.push({
           id: "backend",

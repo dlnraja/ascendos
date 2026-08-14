@@ -23,7 +23,8 @@ Navigateur  →  GitHub Pages ou CF Pages ou Vercel (UI)
             ↘  Worker CF / Vercel /api / Oracle :8787  →  APIs/RSS offres
 ```
 
-Dans AscendOS : **Connecteurs → URL API agrégateur** (upgrade AscendCore ; sans URL = radar 100 % navigateur).
+Dans AscendOS : **Connecteurs → URL API agrégateur** (upgrade AscendCore ; sans URL = radar 100 % navigateur).  
+Exemple live : `https://ascendos-nine.vercel.app` — le client tente `/aggregate` puis `/api/aggregate`.
 
 ---
 
@@ -49,7 +50,7 @@ Puis : **Actions → Deploy Cloudflare Worker → Run workflow**.
 
 Sans ces 3 secrets, le workflow **réussit en skip** (notice dans le résumé) — le front reste sur GitHub Pages.
 
-URL utile après deploy : `https://<projet>.vercel.app` (UI) et agrégateur à coller dans Connecteurs : `https://<projet>.vercel.app` (le client appelle `/aggregate` via la base).
+URL utile après deploy : `https://ascendos-nine.vercel.app` (UI) et agrégateur à coller dans Connecteurs : `https://ascendos-nine.vercel.app` (le client essaie `/aggregate` puis `/api/aggregate`).
 
 ### Oracle Always Free
 1. VM Ampere A1, Ubuntu, Node 20, clé SSH

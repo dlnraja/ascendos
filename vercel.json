@@ -3,7 +3,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" }
+    { "source": "/aggregate", "destination": "/api/aggregate" }
   ],
   "headers": [
     {
@@ -22,7 +22,6 @@
   ],
   "functions": {
     "api/aggregate.js": {
-      "memory": 256,
       "maxDuration": 10
     }
   }
