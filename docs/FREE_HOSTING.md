@@ -24,7 +24,12 @@ Navigateur  →  GitHub Pages ou CF Pages ou Vercel (UI)
 ```
 
 Dans AscendOS : **Connecteurs → URL API agrégateur** (upgrade AscendCore ; sans URL = radar 100 % navigateur).  
-Exemple live : `https://ascendos-nine.vercel.app` — le client tente `/aggregate` puis `/api/aggregate`.
+Boutons : **Utiliser Vercel live** · **Cloudflare (prêt)** · **Local only**.  
+Exemples :
+- Vercel live : `https://ascendos-nine.vercel.app` (le client essaie `/aggregate` puis `/api/aggregate`)
+- Cloudflare : `https://ascendos-aggregate.dlnraja-ascendos.workers.dev` (subdomain `dlnraja-ascendos` créé ; script Worker bloqué tant que l’email compte n’est pas vérifié — [verify email](https://developers.cloudflare.com/fundamentals/setup/account/verify-email-address/))
+
+Sur un front hébergé `*.vercel.app`, AscendCore tente aussi **same-origin** même si le champ est vide.
 
 ---
 
@@ -92,5 +97,6 @@ node server/oracle-aggregate.mjs
 ## Config app
 
 **Connecteurs** → `URL API agrégateur`  
-Ex. `https://ascendos-aggregate.<toi>.workers.dev` ou `https://<projet>.vercel.app`  
-Sans URL : AscendCore reste en **local** (Remotive / RemoteOK / RSS dans le navigateur).
+- Live : `https://ascendos-nine.vercel.app` (bouton **Utiliser Vercel live**)
+- CF (après vérif email + deploy) : `https://ascendos-aggregate.dlnraja-ascendos.workers.dev`
+- Sans URL : AscendCore reste en **local** (Remotive / RemoteOK / RSS dans le navigateur). Sur Vercel, same-origin est tenté automatiquement.

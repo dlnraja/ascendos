@@ -29,8 +29,11 @@ UI / workflows / batch / freshness
 | `AscendCore.enrich.public` | Wikidata soft-fail |
 | `AscendCore.docs.cv` / `.letter` | CV / lettres locaux |
 | `AscendCore.capabilities()` / `.health()` / `.stackSummary()` / `.statusChipsHtml` | Chips **local / upgrade / cooldown** |
+| `AscendCore.liveAggregateHints()` / `.resolveAggregateBases()` | URLs live Vercel/CF + résolution bases API |
 
 Alias rétrocompatibles : `LocalStack.aggregateJobs`, `resolveEmails`, `bindLocalSession`.
+
+Sur un host `*.vercel.app`, `resolveAggregateBases` ajoute l’origine courante si le champ Connecteurs est vide (upgrade same-origin, soft-fail → local).
 
 Voir aussi [`DISCLAIMER.md`](DISCLAIMER.md) : pas de contournement anti-bot / ATS.
 

@@ -11,6 +11,43 @@ const LocalStack = (() => {
     return Boolean(String(val || "").trim());
   }
 
+  /** Public live backends (optional upgrade — never required). */
+  const LIVE_AGGREGATE = {
+    vercel: "https://ascendos-nine.vercel.app",
+    /** Ready after Cloudflare email verify + Worker deploy */
+    cloudflare: "https://ascendos-aggregate.dlnraja-ascendos.workers.dev",
+  };
+
+  /**
+   * Ordered API bases to try: explicit connector → same-origin (Vercel) → none.
+   * Does not auto-call third-party hosts without user config (privacy + quotas).
+   */
+  function resolveAggregateBases(connectors = {}) {
+    const out = [];
+    const seen = new Set();
+    const push = (raw) => {
+      const base = String(raw || "")
+        .trim()
+        .replace(/\/$/, "");
+      if (!base || seen.has(base)) return;
+      seen.add(base);
+      out.push(base);
+    };
+    push(connectors.aggregateApiBase);
+    try {
+      if (typeof location !== "undefined" && /vercel\.app$/i.test(location.hostname || "")) {
+        push(location.origin);
+      }
+    } catch {
+      /* ignore */
+    }
+    return out;
+  }
+
+  function liveAggregateHints() {
+    return { ...LIVE_AGGREGATE };
+  }
+
   /** Snapshot: what works right now (local vs upgraded). */
   function capabilities(state = {}) {
     const c = connectorsOf(state);
@@ -97,14 +134,11 @@ const LocalStack = (() => {
   } = {}) {
     const report = [];
     let jobs = [];
-    const apiBase = String(connectors.aggregateApiBase || "").replace(/\/$/, "");
+    const apiBases = resolveAggregateBases(connectors);
+    const apiBase = apiBases[0] || "";
 
-    if (apiBase) {
+    if (apiBases.length) {
       onProgress?.({ id: "backend", status: "start", label: "Backend" });
-      const endpoints = [`${apiBase}/aggregate`];
-      if (!/\/api$/i.test(apiBase) && !/\/aggregate$/i.test(apiBase)) {
-        endpoints.push(`${apiBase}/api/aggregate`);
-      }
       try {
         if (typeof AscendQuotas !== "undefined") AscendQuotas.consume("aggregate_run");
         const payload =
@@ -118,34 +152,42 @@ const LocalStack = (() => {
             : { query, hours, sources: enabledIds, rss: customRss };
         const fetchFn = typeof AscendResilience !== "undefined" ? AscendResilience.fetch : fetch;
         let lastErr = "backend KO";
-        for (const url of endpoints) {
-          try {
-            const res = await fetchFn(url, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Accept: "application/json" },
-              body: JSON.stringify(payload),
-              timeoutMs: 12000,
-            });
-            if (res.status === 404) {
-              lastErr = `API 404 ${url}`;
-              continue;
+        let gotEmpty = false;
+        outer: for (const base of apiBases) {
+          const endpoints = [`${base}/aggregate`];
+          if (!/\/api$/i.test(base) && !/\/aggregate$/i.test(base)) {
+            endpoints.push(`${base}/api/aggregate`);
+          }
+          for (const url of endpoints) {
+            try {
+              const res = await fetchFn(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Accept: "application/json" },
+                body: JSON.stringify(payload),
+                timeoutMs: 12000,
+              });
+              if (res.status === 404) {
+                lastErr = `API 404 ${url}`;
+                continue;
+              }
+              if (!res.ok) throw new Error(`API ${res.status}`);
+              const data = await res.json();
+              jobs = data.jobs || [];
+              report.push(...(data.report || [{ id: "backend", status: "ok", count: jobs.length }]));
+              onProgress?.({ id: "backend", status: "ok", count: jobs.length });
+              if (jobs.length) {
+                return { jobs, report, path: "backend", degraded: false, apiBase: base };
+              }
+              report.push({ id: "backend", status: "empty", note: "Réponse vide → fallback navigateur" });
+              gotEmpty = true;
+              lastErr = null;
+              break outer;
+            } catch (e) {
+              lastErr = e.message || "backend KO";
             }
-            if (!res.ok) throw new Error(`API ${res.status}`);
-            const data = await res.json();
-            jobs = data.jobs || [];
-            report.push(...(data.report || [{ id: "backend", status: "ok", count: jobs.length }]));
-            onProgress?.({ id: "backend", status: "ok", count: jobs.length });
-            if (jobs.length) {
-              return { jobs, report, path: "backend", degraded: false };
-            }
-            report.push({ id: "backend", status: "empty", note: "Réponse vide → fallback navigateur" });
-            lastErr = null;
-            break;
-          } catch (e) {
-            lastErr = e.message || "backend KO";
           }
         }
-        if (lastErr) {
+        if (lastErr && !gotEmpty) {
           report.push({
             id: "backend",
             status: "down",
@@ -177,7 +219,7 @@ const LocalStack = (() => {
               : enabledIds.filter((id) => id !== "adzuna")
         : enabledIds;
 
-    if (typeof AscendQuotas !== "undefined" && !apiBase) {
+    if (typeof AscendQuotas !== "undefined" && !apiBases.length) {
       try {
         AscendQuotas.consume("aggregate_run");
       } catch {
@@ -615,6 +657,9 @@ const LocalStack = (() => {
     statusChipsHtml,
     stackSummary,
     openMailDraft,
+    liveAggregateHints,
+    resolveAggregateBases,
+    LIVE_AGGREGATE,
     // Back-compat aliases (LocalStack names)
     aggregateJobs,
     resolveEmails,

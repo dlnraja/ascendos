@@ -2858,6 +2858,35 @@
       if (saveConnectorFields()) toast("Secrets sauvés dans le coffre chiffré");
     });
 
+    const setAggregateBase = (url, label) => {
+      const el = $("#aggregate-api-base");
+      if (!el) return;
+      if (AscendSecurity.getMode() === "passphrase" && !AscendSecurity.isUnlocked()) {
+        toast("Déverrouille le coffre d’abord");
+        return;
+      }
+      el.value = url || "";
+      state.connectors.aggregateApiBase = (url || "").replace(/\/$/, "");
+      persist();
+      renderConnectors();
+      renderStackChip();
+      toast(label);
+    };
+    $("#btn-use-agg-vercel")?.addEventListener("click", () => {
+      const hints = core()?.liveAggregateHints?.() || { vercel: "https://ascendos-nine.vercel.app" };
+      setAggregateBase(hints.vercel, "Agrégateur Vercel live activé");
+    });
+    $("#btn-use-agg-cf")?.addEventListener("click", () => {
+      const hints = core()?.liveAggregateHints?.() || {};
+      setAggregateBase(
+        hints.cloudflare || "https://ascendos-aggregate.dlnraja-ascendos.workers.dev",
+        "URL Cloudflare collée — deploy Worker après vérif email CF"
+      );
+    });
+    $("#btn-clear-agg")?.addEventListener("click", () => {
+      setAggregateBase("", "Radar en local only (0 backend)");
+    });
+
     $("#btn-magic-apply")?.addEventListener("click", () => {
       applyMagicLink($("#magic-link-input")?.value || "");
     });

@@ -835,7 +835,19 @@
             </div>
             <div class="field">
               <label>URL API agrégateur</label>
-              <input id="aggregate-api-base" placeholder="https://ascendos-nine.vercel.app" autocomplete="off" />
+              <input
+                id="aggregate-api-base"
+                data-ph="https://ascendos-nine.vercel.app"
+                placeholder="https://ascendos-nine.vercel.app"
+                autocomplete="off"
+              />
+              <div class="row-actions" style="margin-top: 0.45rem; flex-wrap: wrap; gap: 0.35rem">
+                <button class="btn btn-soft" id="btn-use-agg-vercel" type="button">Utiliser Vercel live</button>
+                <button class="btn btn-soft" id="btn-use-agg-cf" type="button" title="Après vérif email Cloudflare + deploy Worker">
+                  Cloudflare (prêt)
+                </button>
+                <button class="btn btn-ghost" id="btn-clear-agg" type="button">Local only</button>
+              </div>
             </div>
             <div class="field">
               <label>Hunter.io API key (optionnel)</label>

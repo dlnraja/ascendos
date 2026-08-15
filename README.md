@@ -57,9 +57,10 @@ Ouvre `http://localhost:3000` (ou `index.html` / `app.html` directement).
 |-------|-----|
 | **GitHub Pages** | https://dlnraja.github.io/ascendos/ · [app](https://dlnraja.github.io/ascendos/app.html) |
 | **Vercel Hobby** | https://ascendos-nine.vercel.app/ · [app](https://ascendos-nine.vercel.app/app) |
-| Agrégateur (optionnel) | coller `https://ascendos-nine.vercel.app` dans Connecteurs → URL API agrégateur |
+| Agrégateur Vercel | `https://ascendos-nine.vercel.app` → Connecteurs → **Utiliser Vercel live** |
+| Cloudflare Worker | `https://ascendos-aggregate.dlnraja-ascendos.workers.dev` — subdomain prêt ; **vérifie l’email CF** puis deploy ([docs](https://developers.cloudflare.com/fundamentals/setup/account/verify-email-address/)) |
 
-Sans URL agrégateur, le radar tourne **en local** (AscendCore). Worker Cloudflare / Oracle : secrets encore à ajouter — [`docs/FREE_HOSTING.md`](docs/FREE_HOSTING.md).
+Sans URL agrégateur, le radar tourne **en local** (AscendCore). Sur un host `*.vercel.app`, AscendCore réutilise aussi l’origine courante automatiquement.
 
 ## Déploiement GitHub Pages (fork)
 
